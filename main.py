@@ -5,6 +5,10 @@ from PIL import Image, ImageTk
 import numpy as np
 import os
 from image import FitsImage
+from PIL import ImageDraw
+
+import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
 MAX_DISPLAY_SIZE = 2000  # Limit to a maximum display size to reduce lag
 
@@ -19,10 +23,18 @@ class FITSViewer:
         self.main_frame.pack(fill="both", expand=True)
 
         # Sidebar (initially hidden)
-        self.sidebar_frame = tk.Frame(self.main_frame, width=200, bg="lightgrey", relief="sunken", borderwidth=2)
+        self.sidebar_frame = tk.Frame(self.main_frame, width=200, relief="sunken", borderwidth=2)
         self.sidebar_frame.pack(side="right", fill="y")
         self.sidebar_frame.pack_forget()  # Start with the sidebar hidden
 
+        # Initialize attributes for drawing mode
+        self.drawing_mode = False
+
+        self.line_start = None
+        self.line_end = None  # Add an end point for the line
+        
+        self.line_id = None
+            
         # Content frame inside main_frame for the rest of the UI elements
         self.content_frame = tk.Frame(self.main_frame)
         self.content_frame.pack(side="left", fill="both", expand=True)
@@ -39,9 +51,12 @@ class FITSViewer:
 
     def setup_ui(self):
         # Sidebar Content
-        tk.Label(self.sidebar_frame, text="Sidebar Content", bg="lightgrey").pack()
+        tk.Label(self.sidebar_frame, text="Sidebar Content").pack()
         # Add additional sidebar controls here (e.g., sliders, buttons, etc.)
 
+        draw_line_button = tk.Button(self.sidebar_frame, text="Draw Line", command=self.toggle_drawing_mode)
+        draw_line_button.pack(pady=5)
+        
         # Main file frame and canvas inside content_frame
         file_frame = tk.Frame(self.content_frame)
         file_frame.pack(fill="x", padx=5, pady=5)
@@ -86,7 +101,7 @@ class FITSViewer:
         self.image_canvas.bind("<MouseWheel>", self.zoom)
         self.image_canvas.bind("<Button-1>", self.start_pan)
         self.image_canvas.bind("<B1-Motion>", self.pan_image)
-
+        
         coord_frame = tk.Frame(self.content_frame)
         coord_frame.pack(pady=10)
         self.x_label = tk.Label(coord_frame, text="X:", width=10, relief="sunken", font=("Arial", 10))
@@ -100,6 +115,22 @@ class FITSViewer:
         self.pixel_value_label = tk.Label(coord_frame, text="Value:", width=15, relief="sunken", font=("Arial", 10))
         self.pixel_value_label.grid(row=0, column=4, padx=5)
 
+    def toggle_drawing_mode(self):
+        """Enable or disable line drawing mode."""
+        self.drawing_mode = not self.drawing_mode
+        if self.drawing_mode:
+            self.line_start = None  # Reset starting point
+            self.line_end = None  # Reset end point
+            self.image_canvas.unbind("<Button-1>")
+            self.image_canvas.bind("<Button-1>", self.handle_canvas_click)  # Bind for drawing
+            print("Drawing mode enabled.")
+        else:
+            self.clear_line()  # Clear any drawn line when exiting drawing mode
+            self.image_canvas.unbind("<Button-1>")
+            self.image_canvas.bind("<Button-1>", self.start_pan)  # Re-bind for panning
+            
+            print("Drawing mode disabled.")
+    
     def toggle_sidebar(self):
         """Toggle the visibility of the sidebar."""
         if self.sidebar_visible:
@@ -107,8 +138,6 @@ class FITSViewer:
         else:
             self.sidebar_frame.pack(side="right", fill="y")  # Show the sidebar
         self.sidebar_visible = not self.sidebar_visible  # Update the visibility status
-
-    # Rest of your code (other methods like open_file_dialog, load_fits, update_image_cache, etc.)
 
     def open_file_dialog(self):
         file_path = filedialog.askopenfilename(filetypes=[("FITS file", ["*.fz", "*fits"] ), ("All files", "*.*")])
@@ -165,7 +194,6 @@ class FITSViewer:
         # Calculate visible area based on offsets and zoom level
         x_start = max(int(self.im_ref().offset_x / self.im_ref().zoom_level), 0)
         y_start = max(int(self.im_ref().offset_y / self.im_ref().zoom_level), 0)
-        
         visible_width = int(self.image_canvas.winfo_width() / self.im_ref().zoom_level)
         visible_height = int(self.image_canvas.winfo_height() / self.im_ref().zoom_level)
 
@@ -179,8 +207,21 @@ class FITSViewer:
             (int(width * self.im_ref().zoom_level), int(height * self.im_ref().zoom_level)),
             Image.NEAREST
         )
-        
-        # Display the cropped and resized image
+
+        # Draw the line if start and end points are set
+        if self.line_start and self.line_end:
+            draw = ImageDraw.Draw(display_img)
+            
+            # Calculate line coordinates relative to the current view
+            start_x = (self.line_start[0] - x_start) * self.im_ref().zoom_level
+            start_y = (self.line_start[1] - y_start) * self.im_ref().zoom_level
+            end_x = (self.line_end[0] - x_start) * self.im_ref().zoom_level
+            end_y = (self.line_end[1] - y_start) * self.im_ref().zoom_level
+
+            # Draw the line in red
+            draw.line((start_x, start_y, end_x, end_y), fill="red", width=2)
+
+        # Display the image with the line
         self.tk_img = ImageTk.PhotoImage(display_img)
         self.image_canvas.delete("all")
         self.image_canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
@@ -213,23 +254,90 @@ class FITSViewer:
 
     def pan_image(self, event):
         """Drag the image in the intuitive direction based on mouse movement."""
-        if not self.active_image:
+        if not self.active_image or self.drawing_mode:  # Skip if in drawing mode
             return
-        
         dx = event.x - self.im_ref().pan_start_x
         dy = event.y - self.im_ref().pan_start_y
-
-        # Move in the drag direction
         self.im_ref().offset_x -= dx
         self.im_ref().offset_y -= dy
-
-        # Update start position for continuous panning
         self.im_ref().pan_start_x = event.x
         self.im_ref().pan_start_y = event.y
-
-        # Refresh the display to reflect panning
         self.update_display_image()
         
+    def handle_canvas_click(self, event):
+        """Handle clicks on the canvas for drawing a line between two points."""
+        if not self.drawing_mode:
+            return  # Only proceed if drawing mode is active
+
+        # Convert canvas click coordinates to image coordinates
+        x_image = (event.x + self.im_ref().offset_x) / self.im_ref().zoom_level
+        y_image = (event.y + self.im_ref().offset_y) / self.im_ref().zoom_level
+
+        if self.line_start is None:
+            # Set the start point and bind the motion event for live drawing
+            self.line_start = (x_image, y_image)
+            self.image_canvas.bind("<Motion>", self.update_line_position)
+        else:
+            # Set the end point, unbind motion, and finalize drawing
+            self.line_end = (x_image, y_image)
+            self.image_canvas.unbind("<Motion>")
+            self.draw_line(self.line_start, (event.x, event.y))
+            
+            self.update_display_image()  # Update display to finalize the line
+    
+    def update_line_position(self, event):
+        """Update the end point of the line as the mouse moves for real-time drawing."""
+        if self.line_start:
+            # Convert current mouse position to image coordinates
+            x_image = (event.x + self.im_ref().offset_x) / self.im_ref().zoom_level
+            y_image = (event.y + self.im_ref().offset_y) / self.im_ref().zoom_level
+
+            # Update the line end temporarily and redraw
+            self.line_end = (x_image, y_image)
+            self.update_display_image()
+        
+    def draw_line(self, start, end):
+        """Draw a line on the canvas between start and end points, and plot pixel values along the line."""
+        if self.line_id is not None:
+            self.image_canvas.delete(self.line_id)  # Remove previous line if any
+
+        # Convert canvas coordinates to image coordinates
+        x0_image = int((start[0] + self.im_ref().offset_x) / self.im_ref().zoom_level)
+        y0_image = int((start[1] + self.im_ref().offset_y) / self.im_ref().zoom_level)
+        x1_image = int((end[0] + self.im_ref().offset_x) / self.im_ref().zoom_level)
+        y1_image = int((end[1] + self.im_ref().offset_y) / self.im_ref().zoom_level)
+
+        # Get coordinates along the line (Bresenham's algorithm for integer-based lines)
+        x_values, y_values = np.linspace(x0_image, x1_image, num=100), np.linspace(y0_image, y1_image, num=100)
+        x_values, y_values = x_values.astype(int), y_values.astype(int)
+
+        # Ensure the coordinates are within bounds
+        x_values = np.clip(x_values, 0, self.im_ref().image_data.shape[1] - 1)
+        y_values = np.clip(y_values, 0, self.im_ref().image_data.shape[0] - 1)
+
+        # Extract pixel values along the line
+        pixel_values = self.im_ref().image_data[y_values, x_values]
+        # Plot the pixel values
+        
+        print(pixel_values)
+        self.toggle_drawing_mode()  # Exit drawing mode after drawing
+        self.plot_pixel_values(pixel_values)
+
+    def clear_line(self):
+        """Clear the drawn line if it exists."""
+        if self.line_id is not None:
+            self.image_canvas.delete(self.line_id)
+            self.line_id = None
+    def plot_pixel_values(self, pixel_values):
+        """Plot the pixel values along the line."""
+        plt.figure(figsize=(8, 4))
+        plt.plot(pixel_values, color='blue', marker='o', markersize=4, linestyle='-')
+        plt.title("Pixel Values Along the Line")
+        plt.xlabel("Position Along the Line")
+        plt.ylabel("Pixel Intensity")
+        plt.grid()
+        plt.show()
+    
     def update_coordinates(self):
         if self.active_image is not None:
             # Get mouse position relative to the canvas
