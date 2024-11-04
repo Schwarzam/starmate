@@ -9,6 +9,7 @@ from PIL import ImageDraw
 
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from skimage.draw import line
 
 MAX_DISPLAY_SIZE = 2000  # Limit to a maximum display size to reduce lag
 
@@ -279,9 +280,9 @@ class FITSViewer:
             self.image_canvas.bind("<Motion>", self.update_line_position)
         else:
             # Set the end point, unbind motion, and finalize drawing
-            self.line_end = (x_image, y_image)
+            self.line_end = (x_image - 1, y_image - 1)
             self.image_canvas.unbind("<Motion>")
-            self.draw_line(self.line_start, (event.x, event.y))
+            self.draw_line(self.line_start, self.line_end)
             
             self.update_display_image()  # Update display to finalize the line
     
@@ -293,7 +294,7 @@ class FITSViewer:
             y_image = (event.y + self.im_ref().offset_y) / self.im_ref().zoom_level
 
             # Update the line end temporarily and redraw
-            self.line_end = (x_image, y_image)
+            self.line_end = (x_image - 1, y_image - 1)
             self.update_display_image()
         
     def draw_line(self, start, end):
@@ -302,23 +303,26 @@ class FITSViewer:
             self.image_canvas.delete(self.line_id)  # Remove previous line if any
 
         # Convert canvas coordinates to image coordinates
-        x0_image = int((start[0] + self.im_ref().offset_x) / self.im_ref().zoom_level)
-        y0_image = int((start[1] + self.im_ref().offset_y) / self.im_ref().zoom_level)
-        x1_image = int((end[0] + self.im_ref().offset_x) / self.im_ref().zoom_level)
-        y1_image = int((end[1] + self.im_ref().offset_y) / self.im_ref().zoom_level)
+        x0_image = int(start[0])
+        y0_image = int(start[1])
+        x1_image = int(end[0])
+        y1_image = int(end[1])
+        
+        
 
-        # Get coordinates along the line (Bresenham's algorithm for integer-based lines)
-        x_values, y_values = np.linspace(x0_image, x1_image, num=100), np.linspace(y0_image, y1_image, num=100)
-        x_values, y_values = x_values.astype(int), y_values.astype(int)
+        # Get exact integer-based coordinates along the line (Bresenham's algorithm)
+        y_values, x_values = line(y0_image, x0_image, y1_image, x1_image)
 
         # Ensure the coordinates are within bounds
         x_values = np.clip(x_values, 0, self.im_ref().image_data.shape[1] - 1)
         y_values = np.clip(y_values, 0, self.im_ref().image_data.shape[0] - 1)
 
+        print(x_values, y_values)
+        
         # Extract pixel values along the line
         pixel_values = self.im_ref().image_data[y_values, x_values]
+
         # Plot the pixel values
-        
         print(pixel_values)
         self.toggle_drawing_mode()  # Exit drawing mode after drawing
         self.plot_pixel_values(pixel_values)
