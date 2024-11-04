@@ -12,7 +12,24 @@ class FITSViewer:
     def __init__(self, root):
         self.root = root
         self.root.title("FITS Viewer")
+        self.sidebar_visible = False  # Track if the sidebar is visible
+
+        # Create the main container frame
+        self.main_frame = tk.Frame(self.root)
+        self.main_frame.pack(fill="both", expand=True)
+
+        # Sidebar (initially hidden)
+        self.sidebar_frame = tk.Frame(self.main_frame, width=200, bg="lightgrey", relief="sunken", borderwidth=2)
+        self.sidebar_frame.pack(side="right", fill="y")
+        self.sidebar_frame.pack_forget()  # Start with the sidebar hidden
+
+        # Content frame inside main_frame for the rest of the UI elements
+        self.content_frame = tk.Frame(self.main_frame)
+        self.content_frame.pack(side="left", fill="both", expand=True)
+
+        # Setup the main UI components in content_frame
         self.setup_ui()
+
         self.active_image = None
         self.images = {}
         self.cached_img_data = None  # Cached processed image data
@@ -21,7 +38,12 @@ class FITSViewer:
         self.update_coordinates()
 
     def setup_ui(self):
-        file_frame = tk.Frame(self.root)
+        # Sidebar Content
+        tk.Label(self.sidebar_frame, text="Sidebar Content", bg="lightgrey").pack()
+        # Add additional sidebar controls here (e.g., sliders, buttons, etc.)
+
+        # Main file frame and canvas inside content_frame
+        file_frame = tk.Frame(self.content_frame)
         file_frame.pack(fill="x", padx=5, pady=5)
         self.file_path_entry = tk.Entry(file_frame, width=40)
         self.file_path_entry.pack(side="left", fill="x", expand=True)
@@ -34,9 +56,11 @@ class FITSViewer:
         
         hdu_numlabel = tk.Label(file_frame, text="HDU Number:")
         hdu_numlabel.pack(side="right")
+        
+        
 
         # Input fields for pmin and pmax with an "Apply" button
-        input_frame = tk.Frame(self.root)
+        input_frame = tk.Frame(self.content_frame)
         input_frame.pack(fill="x", padx=5, pady=5)
         
         tk.Label(input_frame, text="pmin:").pack(side="left")
@@ -51,14 +75,19 @@ class FITSViewer:
         
         apply_button = tk.Button(input_frame, text="Apply", command=self.update_image_cache)
         apply_button.pack(side="left")
+        
+        # Sidebar Toggle Button
+        toggle_sidebar_button = tk.Button(input_frame, text="Tools", command=self.toggle_sidebar)
+        toggle_sidebar_button.pack(side="right")
 
-        self.image_canvas = tk.Canvas(self.root, width=500, height=500)
+        # Canvas to display the FITS image
+        self.image_canvas = tk.Canvas(self.content_frame, width=500, height=500)
         self.image_canvas.pack(fill="both", expand=True, padx=5, pady=5)
         self.image_canvas.bind("<MouseWheel>", self.zoom)
         self.image_canvas.bind("<Button-1>", self.start_pan)
         self.image_canvas.bind("<B1-Motion>", self.pan_image)
 
-        coord_frame = tk.Frame(self.root)
+        coord_frame = tk.Frame(self.content_frame)
         coord_frame.pack(pady=10)
         self.x_label = tk.Label(coord_frame, text="X:", width=10, relief="sunken", font=("Arial", 10))
         self.x_label.grid(row=0, column=0, padx=5)
@@ -71,6 +100,16 @@ class FITSViewer:
         self.pixel_value_label = tk.Label(coord_frame, text="Value:", width=15, relief="sunken", font=("Arial", 10))
         self.pixel_value_label.grid(row=0, column=4, padx=5)
 
+    def toggle_sidebar(self):
+        """Toggle the visibility of the sidebar."""
+        if self.sidebar_visible:
+            self.sidebar_frame.pack_forget()  # Hide the sidebar
+        else:
+            self.sidebar_frame.pack(side="right", fill="y")  # Show the sidebar
+        self.sidebar_visible = not self.sidebar_visible  # Update the visibility status
+
+    # Rest of your code (other methods like open_file_dialog, load_fits, update_image_cache, etc.)
+
     def open_file_dialog(self):
         file_path = filedialog.askopenfilename(filetypes=[("FITS file", ["*.fz", "*fits"] ), ("All files", "*.*")])
         if file_path:
@@ -79,6 +118,8 @@ class FITSViewer:
             self.load_fits(file_path)
 
     def im_ref(self):
+        if self.active_image is None:
+            return None
         return self.images[self.active_image]
     
     def load_fits(self, file_path):
@@ -165,11 +206,16 @@ class FITSViewer:
 
     def start_pan(self, event):
         """Start panning by recording the initial click position."""
+        if not self.active_image:
+            return
         self.im_ref().pan_start_x = event.x
         self.im_ref().pan_start_y = event.y
 
     def pan_image(self, event):
         """Drag the image in the intuitive direction based on mouse movement."""
+        if not self.active_image:
+            return
+        
         dx = event.x - self.im_ref().pan_start_x
         dy = event.y - self.im_ref().pan_start_y
 
