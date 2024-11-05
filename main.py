@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, ttk
 from astropy.io import fits
 from PIL import Image, ImageTk
 import numpy as np
@@ -47,6 +47,10 @@ class FITSViewer:
         self.sidebar_frame.pack(side="right", fill="y")
         self.sidebar_frame.pack_forget()  # Start with the sidebar hidden
         
+        # Initialize the Combobox to select active images
+        self.image_selector = ttk.Combobox(self.main_frame, state="readonly", postcommand=self.update_image_list)
+        self.image_selector.pack(side="top", padx=10, pady=5)
+        self.image_selector.bind("<<ComboboxSelected>>", self.change_active_image)
         
         # Bind the "1" key to toggle coordinate freezing
         self.root.bind("1", self.toggle_freeze_coords)
@@ -148,7 +152,21 @@ class FITSViewer:
         # Matplotlib plot canvas
         self.plot_frame = tk.Frame(coord_frame)
         self.plot_frame.pack(side="left", padx=5, pady=5)
-
+        
+    def update_image_list(self):
+        """Update the combobox with loaded images."""
+        self.image_selector['values'] = list(self.images.keys())
+        if self.active_image:
+            self.image_selector.set(self.active_image)
+            
+            
+    def change_active_image(self, event):
+        """Change the active image based on the combobox selection."""
+        selected_image = self.image_selector.get()
+        if selected_image in self.images:
+            self.active_image = selected_image
+            self.update_display_image()
+    
     def toggle_sidebar(self):
         """Toggle the visibility of the sidebar."""
         if self.sidebar_visible:
@@ -199,7 +217,6 @@ class FITSViewer:
         self.tk = self.im_ref().update_display_image(self.image_canvas)
         self.image_canvas.delete("all")
         self.image_canvas.create_image(0, 0, anchor="nw", image=self.tk)
-        
         
     def update_thumbnail(self):
         """Update the thumbnail to show the area around the cursor."""
