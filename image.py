@@ -203,31 +203,42 @@ class FitsImage:
             self.line_id = None
             
     def plot_pixel_values(self, pixel_values):
-        """Plot the pixel values along the line and display it within the Tkinter interface with a matching background."""
+        """Plot the pixel values along the line and display it within the Tkinter interface with a custom background."""
 
         # Clear previous plot if it exists
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
         
-        # Set the background color of plot_frame to match the desired "transparent" look
-        # This color should match the Tkinter window background where the plot_frame is embedded
-        self.plot_frame.config(bg="light gray")  # Example color; adjust as needed
+        # Set the background color of plot_frame to match the Tkinter window background if necessary
+        self.plot_frame.config(bg="#333233")  # Adjust to your main window color if needed
 
-        # Create a new figure with no background color to simulate transparency
-        fig = Figure(figsize=(4, 2), dpi=100)
-        fig.patch.set_color("none")  # Set figure background to "none"
-        ax = fig.add_subplot(111, facecolor="none")  # Set the axes background to "none"
-
+        # Create a new figure with specified background color
+        fig = Figure(figsize=(4, 2), dpi=100, facecolor="#333233")
+        ax = fig.add_subplot(111, facecolor="#333233")  # Set axes background to the same color
+        
+        line_color = "#FFDD44"  # Yellowish line color
+        marker_color = "#FF8800"  # Orange marker color
         # Plot the pixel values
-        ax.plot(pixel_values, color='blue', marker='o', markersize=4, linestyle='-')
-        ax.set_title("Pixel Values Along the Line")
-        ax.set_xlabel("Position Along the Line")
-        ax.set_ylabel("Pixel Intensity")
-        ax.grid(True)
+        ax.plot(
+            pixel_values, 
+            color=line_color, 
+            markerfacecolor=marker_color,
+            markeredgewidth=0,
+            marker='o', 
+            markersize=2, 
+            linestyle='-',
+            linewidth=1
+        )
+        ax.set_title("Pixel Values Along the Line", color="white")  # Set title color to contrast
+        ax.set_xlabel("Position Along the Line", color="white")
+        ax.set_ylabel("Pixel Intensity", color="white")
+        ax.grid(True, color="gray")  # Grid color for visibility on dark background
 
-        # Set spines and ticks color to match the background if needed
-        for spine in ax.spines.values():
-            spine.set_visible(False)
+        # Customize tick colors to match background contrast
+        ax.tick_params(colors="white")
+
+        # Apply tight layout to prevent cutting off edges
+        fig.tight_layout()
 
         # Embed the plot in the specified frame
         self.plot_canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
