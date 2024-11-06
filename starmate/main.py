@@ -1,79 +1,81 @@
+import customtkinter as ctk
+
 import tkinter as tk
-from tkinter import filedialog, ttk
+
+from tkinter import filedialog
+from tkinter import font as tkFont
 from astropy.io import fits
 from PIL import Image, ImageTk
 import numpy as np
 import os
-
-from PIL import ImageDraw
-
-import tkinter.font as tkFont
-
-import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
-from skimage.draw import line
 import pyglet
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 
+import starmate
 from starmate.image import FitsImage
+from starmate.fonts.font_manager import FontManager
+
 
 MAX_DISPLAY_SIZE = 2000  # Limit to a maximum display size to reduce lag
+
 
 class FITSViewer:
     def __init__(self, root, args):
         self.root = root
-        self.root.title("FITS Viewer")
+        self.root.title("starmate")
         self.sidebar_visible = False  # Track if the sidebar is visible
 
-        # Set the default font style
-        font_path = os.path.join(os.path.dirname(__file__), "JetBrainsMono-VariableFont_wght.ttf")
-        pyglet.font.add_file(str(font_path))
-        # Verify if the font was loaded
-        if pyglet.font.have_font("JetBrains Mono"):
-            print("Font loaded successfully.")
-        else:
-            print("Font not found.")
-            
-        custom_font = tkFont.Font(family="JetBrains Mono")  # Set size as needed
-        self.root.option_add("*Font", custom_font)
-        
-        
-        # Create the main container frame
-        self.main_frame = tk.Frame(self.root)
-        self.main_frame.pack(fill="both", expand=True)
+        # Load the custom font with pyglet
+        font_dir = os.path.join(starmate.__path__[0], "fonts")
+        font_path = os.path.join(font_dir, "JetBrainsMono-VariableFont_wght.ttf")
+        FontManager.load_font(font_path)
+
+        # Use the custom font in Tkinter
+        try:
+            custom_font = tkFont.Font(family="JetBrains Mono", size=18)  # Adjust size as needed
+            self.root.option_add("*Font", custom_font)
+        except tk.TclError:
+            print("Font could not be applied in Tkinter.")
+
+        # Main Frame using ctk
+        self.main_frame = ctk.CTkFrame(self.root)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)  # Added padding here
 
         # Sidebar (initially hidden)
-        self.sidebar_frame = tk.Frame(self.main_frame, width=200, relief="sunken", borderwidth=2)
-        self.sidebar_frame.pack(side="right", fill="y")
+        self.sidebar_frame = ctk.CTkFrame(self.main_frame, width=200)
+        self.sidebar_frame.pack(side="right", fill="y", padx=10, pady=10)  # Added padding
         self.sidebar_frame.pack_forget()  # Start with the sidebar hidden
+
+        # Frame to hold the ComboBox and Change Image button
+        selector_frame = ctk.CTkFrame(self.main_frame)
+        selector_frame.pack(side="top", padx=10, pady=10, fill="x")
         
-        # Initialize the Combobox to select active images
-        self.image_selector = ttk.Combobox(self.main_frame, state="readonly", postcommand=self.update_image_list)
-        self.image_selector.pack(side="top", padx=10, pady=5)
-        self.image_selector.bind("<<ComboboxSelected>>", self.change_active_image)
+        # ComboBox setup
+        self.image_selector = ctk.CTkComboBox(selector_frame, height=30, width=150)
+        self.image_selector.pack(side="left", padx=5, pady=10)
         
-        # Bind the "1" key to toggle coordinate freezing
+        # Button to manually change the image based on ComboBox selection
+        change_image_button = ctk.CTkButton(selector_frame, text="Change Image", command=self.change_active_image)
+        change_image_button.pack(side="left", padx=10)
+
+        
+        # Bind key to toggle coordinate freezing
         self.root.bind("1", self.toggle_freeze_coords)
-        
-        self.coords_frozen = False  # Track if coordinates are frozen
-        
-        # Initialize attributes for drawing mode
+
+        # Additional attributes
+        self.coords_frozen = False
         self.drawing_mode = False
-
         self.line_start = None
-        self.line_end = None  # Add an end point for the line
-        
+        self.line_end = None
         self.line_id = None
-            
-        # Content frame inside main_frame for the rest of the UI elements
-        self.content_frame = tk.Frame(self.main_frame)
-        self.content_frame.pack(side="left", fill="both", expand=True)
 
-        # Setup the main UI components in content_frame
+        # Content frame inside main_frame for UI elements
+        self.content_frame = ctk.CTkFrame(self.main_frame)
+        self.content_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)  # Added padding
+
+        # Setup main UI components
         self.setup_ui()
-
+        
         self.active_image = None
         self.images = {}
         self.cached_img_data = None  # Cached processed image data
@@ -81,92 +83,119 @@ class FITSViewer:
         self.current_display = None  # Cache for the displayed image portion
         self.update_coordinates()
         self.update_thumbnail()
-
+        
     def setup_ui(self):
-        # Sidebar Content
-        tk.Label(self.sidebar_frame, text="Sidebar Content").pack()
-        # Add additional sidebar controls here (e.g., sliders, buttons, etc.)
-
-        draw_line_button = tk.Button(self.sidebar_frame, text="Draw Line", command=self.toggle_drawing_mode)
+        # Sidebar Content with padding
+        ctk.CTkLabel(self.sidebar_frame, text="Sidebar Content").pack(pady=10)
+        
+        draw_line_button = ctk.CTkButton(self.sidebar_frame, text="Draw Line", command=self.toggle_drawing_mode)
         draw_line_button.pack(pady=5)
-        
-        # Main file frame and canvas inside content_frame
-        file_frame = tk.Frame(self.content_frame)
-        file_frame.pack(fill="x", padx=5, pady=5)
-        self.file_path_entry = tk.Entry(file_frame, width=40)
-        self.file_path_entry.pack(side="left", fill="x", expand=True)
-        browse_button = tk.Button(file_frame, text="Browse FITS File", command=self.open_file_dialog)
-        browse_button.pack(side="right")
-        
-        self.hdu_numinput = tk.Entry(file_frame, width=5)
-        self.hdu_numinput.pack(side="right")
-        self.hdu_numinput.insert(0, "1")
-        
-        hdu_numlabel = tk.Label(file_frame, text="HDU Number:")
-        hdu_numlabel.pack(side="right")
-        
-        # Input fields for pmin and pmax with an "Apply" button
-        input_frame = tk.Frame(self.content_frame)
-        input_frame.pack(fill="x", padx=5, pady=5)
-        
-        tk.Label(input_frame, text="pmin:").pack(side="left")
-        self.pmin_entry = tk.Entry(input_frame, width=5)
-        self.pmin_entry.insert(0, "0")
-        self.pmin_entry.pack(side="left")
-        
-        tk.Label(input_frame, text="pmax:").pack(side="left")
-        self.pmax_entry = tk.Entry(input_frame, width=5)
-        self.pmax_entry.insert(0, "100")
-        self.pmax_entry.pack(side="left")
-        
-        apply_button = tk.Button(input_frame, text="Apply", command=self.update_image_cache)
-        apply_button.pack(side="left")
-        
-        # Sidebar Toggle Button
-        toggle_sidebar_button = tk.Button(input_frame, text="Tools", command=self.toggle_sidebar)
-        toggle_sidebar_button.pack(side="right")
 
-        # Canvas to display the FITS image
-        self.image_canvas = tk.Canvas(self.content_frame, width=500, height=500)
-        self.image_canvas.pack(fill="both", expand=True, padx=5, pady=5)
+        # Main file frame and canvas inside content_frame with padding
+        file_frame = ctk.CTkFrame(self.content_frame)
+        file_frame.pack(fill="x", padx=10, pady=10)
+        
+        self.file_path_entry = ctk.CTkEntry(file_frame, width=40)
+        self.file_path_entry.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        
+        browse_button = ctk.CTkButton(file_frame, text="Browse FITS File", command=self.open_file_dialog)
+        browse_button.pack(side="right", padx=5, pady=5)
+        
+        self.hdu_numinput = ctk.CTkEntry(file_frame, width=5)
+        self.hdu_numinput.pack(side="right", padx=5, pady=5)
+        self.hdu_numinput.insert(0, "1")
+
+        hdu_numlabel = ctk.CTkLabel(file_frame, text="HDU Number:")
+        hdu_numlabel.pack(side="right", padx=5, pady=5)
+
+        # pmin and pmax inputs with an "Apply" button with padding
+        input_frame = ctk.CTkFrame(self.content_frame)
+        input_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(input_frame, text="pmin:").pack(side="left", padx=5)
+        self.pmin_entry = ctk.CTkEntry(input_frame, width=50)
+        self.pmin_entry.insert(0, "0")
+        self.pmin_entry.pack(side="left", padx=5)
+        
+        ctk.CTkLabel(input_frame, text="pmax:").pack(side="left", padx=5)
+        self.pmax_entry = ctk.CTkEntry(input_frame, width=50)  # Adjust width to make it wider
+        self.pmax_entry.insert(0, "100")
+        self.pmax_entry.pack(side="left", padx=5)
+        
+        apply_button = ctk.CTkButton(input_frame, text="Apply", command=self.update_image_cache)
+        apply_button.pack(side="left", padx=10)
+
+        # Sidebar Toggle Button
+        toggle_sidebar_button = ctk.CTkButton(input_frame, text="Tools", command=self.toggle_sidebar)
+        toggle_sidebar_button.pack(side="right", padx=10)
+
+        # Canvas to display the FITS image with padding
+        self.image_canvas = ctk.CTkCanvas(self.content_frame, width=500, height=500)
+        self.image_canvas.pack(fill="both", expand=True, padx=10, pady=10)
         self.image_canvas.bind("<MouseWheel>", self.zoom)
         self.image_canvas.bind("<Button-1>", self.start_pan)
         self.image_canvas.bind("<B1-Motion>", self.pan_image)
-        
-        coord_frame = tk.Frame(self.content_frame)
-        coord_frame.pack(side="left", anchor="w", padx=10, pady=10)
-        
-        self.info_text = tk.Text(
-            coord_frame,
-            width=30,
-            height=10,
-            borderwidth=0,  # Removes border
-            highlightthickness=0,  # Removes highlight border
-            font=("Courier", 10),  # Set font to monospace
-            background=coord_frame.cget("background")  # Match the background of parent frame
-        )
-        self.info_text.pack(side="left", anchor="w", padx=5, pady=5)
-        
-        # Thumbnail canvas
-        self.thumbnail_canvas = tk.Canvas(coord_frame, width=100, height=100)
-        self.thumbnail_canvas.pack(side="left", padx=5, pady=5)
 
-        # Matplotlib plot canvas
-        self.plot_frame = tk.Frame(coord_frame)
-        self.plot_frame.pack(side="left", padx=5, pady=5)
+        
+        # Uniform dark background color for all frames in the row
+        dark_bg_color = "#2E2E2E"
+
+        # Create three main frames inside content_frame to hold coord_frame, thumbnail, and plot_frame side by side
+        coord_frame = ctk.CTkFrame(self.content_frame, fg_color=dark_bg_color)
+        coord_frame.pack(side="left", padx=10, pady=10)
+
+        thumbnail_frame = ctk.CTkFrame(self.content_frame, fg_color=dark_bg_color)
+        thumbnail_frame.pack(side="left", padx=10, pady=10)
+
+        plot_frame = ctk.CTkFrame(self.content_frame, fg_color=dark_bg_color)
+        plot_frame.pack(side="left", padx=10, pady=10)
+
+        # Coordinate labels in coord_frame
+        self.x_label = ctk.CTkLabel(coord_frame, text="X:", fg_color=dark_bg_color)
+        self.x_value = ctk.CTkLabel(coord_frame, text="N/A", fg_color=dark_bg_color)
+        self.y_label = ctk.CTkLabel(coord_frame, text="Y:", fg_color=dark_bg_color)
+        self.y_value = ctk.CTkLabel(coord_frame, text="N/A", fg_color=dark_bg_color)
+        self.ra_label = ctk.CTkLabel(coord_frame, text="RA:", fg_color=dark_bg_color)
+        self.ra_value = ctk.CTkLabel(coord_frame, text="N/A", fg_color=dark_bg_color)
+        self.dec_label = ctk.CTkLabel(coord_frame, text="Dec:", fg_color=dark_bg_color)
+        self.dec_value = ctk.CTkLabel(coord_frame, text="N/A", fg_color=dark_bg_color)
+        self.pixel_label = ctk.CTkLabel(coord_frame, text="Pixel:", fg_color=dark_bg_color)
+        self.pixel_value = ctk.CTkLabel(coord_frame, text="N/A", fg_color=dark_bg_color)
+
+        labels = [
+            (self.x_label, self.x_value),
+            (self.y_label, self.y_value),
+            (self.ra_label, self.ra_value),
+            (self.dec_label, self.dec_value),
+            (self.pixel_label, self.pixel_value),
+        ]
+        
+        for row, (label, value) in enumerate(labels):
+            label.grid(row=row, column=0, padx=5, pady=2, sticky="w")
+            value.grid(row=row, column=1, padx=5, pady=2, sticky="w")
+
+        # Thumbnail canvas in thumbnail_frame
+        self.thumbnail_canvas = ctk.CTkCanvas(thumbnail_frame, width=100, height=100)
+        self.thumbnail_canvas.pack(padx=10, pady=10)
+
+        # Plot frame in plot_frame
+        self.plot_frame = ctk.CTkFrame(plot_frame)
+        self.plot_frame.pack(padx=10, pady=10)
         
     def update_image_list(self):
         """Update the combobox with loaded images."""
-        self.image_selector['values'] = list(self.images.keys())
+        # Ensure that the values are assigned directly to the CTkComboBox widget
+        self.image_selector.configure(values=list(self.images.keys()))
         if self.active_image:
             self.image_selector.set(self.active_image)
             
-    def change_active_image(self, event):
+    def change_active_image(self, event=None):
         """Change the active image based on the combobox selection."""
-        selected_image = self.image_selector.get()
-        if selected_image in self.images:
+        print("change_active_image")
+        selected_image = self.image_selector.get()  # Retrieve the selected image name
+        if selected_image in self.images:  # Check if the selected image is valid
             self.active_image = selected_image
-            self.update_display_image()
+            self.update_display_image()  # Refresh the display to show the selected image
     
     def toggle_sidebar(self):
         """Toggle the visibility of the sidebar."""
@@ -199,8 +228,10 @@ class FITSViewer:
             self.images[image_name] = im
             self.active_image = image_name
             
+            # Manually update the image list
+            self.update_image_list()
             self.update_display_image()
- 
+    
         except Exception as e:
             print(f"Error loading file: {e}")
 
@@ -307,7 +338,6 @@ class FITSViewer:
     
     def update_coordinates(self):
         if self.coords_frozen:
-            # Skip updating if coordinates are frozen
             return
         
         if not self.active_image:
@@ -324,60 +354,28 @@ class FITSViewer:
         y_image = (y_canvas + self.im_ref().offset_y) / self.im_ref().zoom_level
         x_int, y_int = round(x_image) - 1, round(y_image) - 1
 
-        final_text = ''
-        
-        ra_value = ''
-        dec_value = ''
-        x_value = ''
-        y_value = ''
-        pixel_value = ''
-        
+        # Default values
+        x_value, y_value, ra_value, dec_value, pixel_value = "N/A", "N/A", "N/A", "N/A", "N/A"
+
         # Ensure coordinates are within the image boundaries
         if 0 <= x_int < self.im_ref().image_data.shape[1] and 0 <= y_int < self.im_ref().image_data.shape[0]:
-            # Get pixel value from the full-resolution data
-            pixel_value = self.im_ref().image_data[y_int, x_int]
-            
+            pixel_value = f"{self.im_ref().image_data[y_int, x_int]:.4f}"
+
             # Calculate RA and Dec if WCS information is available
             if hasattr(self.im_ref(), 'wcs_info') and self.im_ref().wcs_info:
                 ra_dec = self.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
-                ra, dec = ra_dec[0], ra_dec[1]
-                ra_value = f"{ra:.4f}"
-                dec_value = f"{dec:.4f}"
-            else:
-                # Set RA/Dec to None if no WCS information
-                ra_value = "N/A"
-                dec_value = "N/A"
-            
+                ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
+
             # Update coordinate labels
             x_value = f"{x_image:.2f}"
             y_value = f"{y_image:.2f}"
-            pixel_value = f"{pixel_value:.4f}"
-        else:
-            # Clear labels if outside image bounds
-            x_value = "N/A"
-            y_value = "N/A"
-            ra_value = "N/A"
-            dec_value = "N/A"
-            pixel_value = "N/A"
-            
-        # Format text
-        final_text = f"""\
-|------------------------|
-|      Coordinates       |
-|------------------------|
-| x     | {x_value:<13}  |
-| y     | {y_value:<13}  |
-| RA    | {ra_value:<13}  |
-| Dec   | {dec_value:<13}  |
-| Pixel | {pixel_value:<13}  |
-|------------------------|
-"""
 
-        # Enable editing to update the text, then disable it again to make it read-only
-        self.info_text.configure(state='normal')
-        self.info_text.delete(1.0, tk.END)  # Clear previous content
-        self.info_text.insert(tk.END, final_text)  # Insert new content
-        self.info_text.configure(state='disabled')  # Make read-only again
+        # Update label text
+        self.x_value.configure(text=x_value)
+        self.y_value.configure(text=y_value)
+        self.ra_value.configure(text=ra_value)
+        self.dec_value.configure(text=dec_value)
+        self.pixel_value.configure(text=pixel_value)
 
         # Schedule the next update
         self.root.after(50, self.update_coordinates)
@@ -392,7 +390,7 @@ def main():
     args = parser.parse_args()
     
     
-    root = tk.Tk()
+    root = ctk.CTk()
     viewer = FITSViewer(root, args)
     
     

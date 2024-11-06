@@ -210,7 +210,7 @@ class FitsImage:
             widget.destroy()
         
         # Set the background color of plot_frame to match the Tkinter window background if necessary
-        self.plot_frame.config(bg="#333233")  # Adjust to your main window color if needed
+        self.plot_frame.configure(fg_color="#333233")  # Adjust to your main window color if needed
 
         # Create a new figure with specified background color
         fig = Figure(figsize=(4, 2), dpi=100, facecolor="#333233")
