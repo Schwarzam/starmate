@@ -4,7 +4,7 @@ from astropy.io import fits
 from PIL import Image, ImageTk
 import numpy as np
 import os
-from image import FitsImage
+
 from PIL import ImageDraw
 
 import tkinter.font as tkFont
@@ -17,10 +17,12 @@ import pyglet
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from starmate.image import FitsImage
+
 MAX_DISPLAY_SIZE = 2000  # Limit to a maximum display size to reduce lag
 
 class FITSViewer:
-    def __init__(self, root):
+    def __init__(self, root, args):
         self.root = root
         self.root.title("FITS Viewer")
         self.sidebar_visible = False  # Track if the sidebar is visible
@@ -158,7 +160,6 @@ class FITSViewer:
         self.image_selector['values'] = list(self.images.keys())
         if self.active_image:
             self.image_selector.set(self.active_image)
-            
             
     def change_active_image(self, event):
         """Change the active image based on the combobox selection."""
@@ -381,6 +382,18 @@ class FITSViewer:
         # Schedule the next update
         self.root.after(50, self.update_coordinates)
 
-root = tk.Tk()
-viewer = FITSViewer(root)
-root.mainloop()
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description="CLI for astroxs package")
+    # Define CLI arguments here, e.g.,
+    # parser.add_argument('arg_name', help="Description of argument")
+    
+    args = parser.parse_args()
+    
+    
+    root = tk.Tk()
+    viewer = FITSViewer(root, args)
+    
+    
+    root.mainloop()
