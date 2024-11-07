@@ -18,6 +18,9 @@ from logpool import control
 
 class Manager:
     def __init__(self):
+        control.keep_in_memory = True
+        control.simple_log = True
+        control.info("starting starmate")
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
         self.root.geometry("1360x900")
@@ -57,9 +60,13 @@ class Manager:
         self.main_frame = ctk.CTkFrame(self.root, fg_color=colors.bg)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
+        # Content frame inside main_frame for UI elements
+        self.content_frame = ctk.CTkFrame(self.main_frame, fg_color=colors.bg)
+        self.content_frame.pack(side="left", fill="both", padx=10, pady=10)
+        
         # Frame to hold the ComboBox and Change Image button
-        selector_frame = ctk.CTkFrame(self.main_frame, fg_color=colors.bg)
-        selector_frame.pack(side="top", padx=20, pady=10, fill="x")
+        selector_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
+        selector_frame.pack(side="top", padx=5, pady=10, fill="x")
 
         # ComboBox setup
         self.image_selector = ctk.CTkComboBox(
@@ -82,7 +89,18 @@ class Manager:
         self.sidebar_frame = ctk.CTkFrame(
             self.main_frame, fg_color=colors.bg
         )
-        self.sidebar_frame.pack(side="right", expand=True, padx=10, pady=10)
+        self.sidebar_frame.pack(side="right", expand=True, fill="both", padx=10, pady=10)
+        
+        self.terminal_frame = ctk.CTkFrame(
+            self.sidebar_frame
+        )
+        self.terminal_frame.pack(side="bottom", padx = 10, pady = 10, fill="x")
+        # Terminal-like text box
+        self.terminal_textbox = ctk.CTkTextbox(
+            self.terminal_frame, height=200, fg_color="black", text_color=colors.text
+        )
+        self.terminal_textbox.pack(padx=10, pady=10, expand=True, fill="x")
+        self.update_terminal()
         
     def sidebar_menu(self):
         # Sidebar Content with padding
@@ -104,6 +122,16 @@ class Manager:
         )
         draw_line_button.pack(pady=5)
     
+    def update_terminal(self):
+        """Updates the terminal text box with lines from the terminal_lines array."""
+        self.terminal_textbox.delete("1.0", "end")  # Clear previous text
+        
+        for line in control.memory:
+            self.terminal_textbox.insert("end", line + "\n")  # Add each line followed by a newline
+        self.terminal_textbox.see("end")  # Auto-scroll to the latest line
+        
+        self.root.after(200, self.update_terminal)
+    
     def toggle_drawing_mode(self):
         """Enable or disable line drawing mode."""
         if not self.active_im():
@@ -117,11 +145,11 @@ class Manager:
             self.viewer.image_canvas.bind(
                 "<Button-1>", self.viewer.handle_canvas_click
             )  # Bind for drawing
-            print("Drawing mode enabled.")
+            control.info("Drawing mode enabled.")
         else:
             self.viewer.image_canvas.unbind("<Button-1>")
             self.viewer.image_canvas.bind("<Button-1>", self.viewer.start_pan)  # Re-bind for panning
-            print("Drawing mode disabled.")
+            control.info("Drawing mode disabled.")
     
     def change_active_image(self, event=None):
         """Change the active image based on the combobox selection."""

@@ -8,7 +8,7 @@ from astropy.io import fits
 from PIL import Image, ImageTk
 import numpy as np
 import os
-import pyglet
+from logpool import control
 
 from starmate.image import FitsImage
 from starmate.variables import fonts, colors
@@ -30,8 +30,7 @@ class FITSViewer:
         self.coords_frozen = False
 
         # Content frame inside main_frame for UI elements
-        self.content_frame = ctk.CTkFrame(self.manager.main_frame, fg_color=colors.bg)
-        self.content_frame.pack(side="left", fill="both", padx=10, pady=10)
+        self.content_frame = self.manager.content_frame
 
         # Setup main UI components
         self.setup_ui()
@@ -189,7 +188,7 @@ class FITSViewer:
         clipboard_text = f"{ra_text} {dec_text}"
         self.root.clipboard_clear()
         self.root.clipboard_append(clipboard_text)
-        print(f"Copied to clipboard: {clipboard_text}")
+        control.info(f"Copied to clipboard: {clipboard_text}")
 
     def update_image_list(self):
         """Update the combobox with loaded images."""
@@ -246,7 +245,7 @@ class FITSViewer:
             self.update_display_image()
 
         except Exception as e:
-            print(f"Error loading file: {e}")
+            control.critical(f"Error loading file: {e}")
 
     def update_image_cache(self):
         if not self.manager.active_im():
@@ -332,10 +331,14 @@ class FITSViewer:
     def toggle_freeze_coords(self, event):
         """Toggle freezing of coordinates display."""
         self.coords_frozen = not self.coords_frozen
+        
+        x_image, y_image = self.manager.im_ref().get_image_xy_mouse()
+        x_image, y_image = round(x_image, 2), round(y_image, 2)
+        
         if self.coords_frozen:
-            print("Coordinates frozen.")
+            control.info(f"coordinates frozen on {x_image} {y_image}.")
         else:
-            print("Coordinates unfrozen.")
+            control.info("coordinates unfrozen.")
             self.update_coordinates()  # Ensure coordinates start updating again if unfrozen
 
     def update_coordinates(self):
