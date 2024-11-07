@@ -64,7 +64,6 @@ class FontManager:
         # macOS
         elif sys.platform.startswith("darwin"):
             customtkinter_directory = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-            font_path = os.path.join(customtkinter_directory, "assets", "fonts", "noto_sans", "regular.ttf")
             try:
                 # Define the path to the Fonts folder in the user's home directory
                 fonts_folder = os.path.join(os.path.expanduser("~"), "Library", "Fonts")
