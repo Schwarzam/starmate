@@ -18,12 +18,13 @@ from logpool import control
 
 class Manager:
     def __init__(self):
+        ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
+        self.root.geometry("1360x900")
         self.load_font()
         
         self.root.title("starmate")
-        self.sidebar_visible = False  # Track if the sidebar is visible
-        
+
         self.init_mainframe()
         self.init_sidebar()
         
@@ -38,9 +39,6 @@ class Manager:
         self.drawing_mode = False
         
         self.viewer = FITSViewer(self, self.root, self.args)
-
-        
-
     
     def active_im(self) -> bool:
         if self.active_image is None:
@@ -56,46 +54,35 @@ class Manager:
         
     def init_mainframe(self):
         # Main Frame using ctk
-        self.main_frame = ctk.CTkFrame(self.root, fg_color=colors.bg, width=1600)
+        self.main_frame = ctk.CTkFrame(self.root, fg_color=colors.bg)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Frame to hold the ComboBox and Change Image button
         selector_frame = ctk.CTkFrame(self.main_frame, fg_color=colors.bg)
-        selector_frame.pack(side="top", padx=10, pady=10, fill="x")
+        selector_frame.pack(side="top", padx=20, pady=10, fill="x")
 
         # ComboBox setup
         self.image_selector = ctk.CTkComboBox(
             selector_frame,
-            height=30,
+            height=25,
             width=400,
             fg_color=colors.bg,
             text_color=colors.text,
-            font=fonts.md,
+            font=fonts.sm,
+            command=self.change_active_image,
         )
         self.image_selector.configure(values=[])
         self.image_selector.set("Select Image")
         
-        self.image_selector.pack(side="left", padx=5, pady=10)
-
-        # Button to manually change the image based on ComboBox selection
-        change_image_button = ctk.CTkButton(
-            selector_frame,
-            text=f"Change Image",
-            command=self.change_active_image,
-            font=fonts.md,
-            fg_color=colors.accent,
-            text_color=colors.text,
-        )
-        change_image_button.pack(side="left", padx=10)
+        self.image_selector.pack(side="left", padx=5)
 
 
     def init_sidebar(self):
         # Sidebar (initially hidden)
         self.sidebar_frame = ctk.CTkFrame(
-            self.main_frame, width=200, fg_color=colors.bg
+            self.main_frame, fg_color=colors.bg
         )
-        self.sidebar_frame.pack(side="right", fill="y", padx=10, pady=10)
-        self.sidebar_frame.pack_forget()  # Start with the sidebar hidden
+        self.sidebar_frame.pack(side="right", expand=True, padx=10, pady=10)
         
     def sidebar_menu(self):
         # Sidebar Content with padding
@@ -116,7 +103,6 @@ class Manager:
             text_color=colors.text,
         )
         draw_line_button.pack(pady=5)
-
     
     def toggle_drawing_mode(self):
         """Enable or disable line drawing mode."""
@@ -137,15 +123,6 @@ class Manager:
             self.viewer.image_canvas.bind("<Button-1>", self.viewer.start_pan)  # Re-bind for panning
             print("Drawing mode disabled.")
     
-    
-    def toggle_sidebar(self):
-        """Toggle the visibility of the sidebar."""
-        if self.sidebar_visible:
-            self.sidebar_frame.pack_forget()  # Hide the sidebar
-        else:
-            self.sidebar_frame.pack(side="right", fill="y")  # Show the sidebar
-        self.sidebar_visible = not self.sidebar_visible  # Update the visibility status
-
     def change_active_image(self, event=None):
         """Change the active image based on the combobox selection."""
         print("change_active_image")

@@ -24,18 +24,14 @@ class FITSViewer:
 
         
         # Bind key to toggle coordinate freezing
-        self.root.bind("1", self.toggle_freeze_coords)
+        self.root.bind("f", self.toggle_freeze_coords)
 
         # Additional attributes
         self.coords_frozen = False
-        
-        self.line_start = None
-        self.line_end = None
-        self.line_id = None
 
         # Content frame inside main_frame for UI elements
         self.content_frame = ctk.CTkFrame(self.manager.main_frame, fg_color=colors.bg)
-        self.content_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        self.content_frame.pack(side="left", fill="both", padx=10, pady=10)
 
         # Setup main UI components
         self.setup_ui()
@@ -46,17 +42,17 @@ class FITSViewer:
     def setup_ui(self):
         # Main file frame and canvas inside content_frame with padding
         file_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        file_frame.pack(fill="x", padx=10, pady=10)
+        file_frame.pack(fill="both", padx=10, pady=10)
 
         self.file_path_entry = ctk.CTkEntry(
             file_frame,
-            width=40,
             fg_color=colors.bg,
             text_color=colors.text,
-            font=fonts.md,
+            font=fonts.sm,
         )
-        self.file_path_entry.pack(side="left", fill="x", expand=True, padx=5, pady=5)
-
+        self.file_path_entry.pack(side="left", fill="x", expand=True, pady=5)
+        self.file_path_entry.bind("<Return>", lambda event: self.load_fits(self.file_path_entry.get()))
+        
         browse_button = ctk.CTkButton(
             file_frame,
             text="Browse FITS File",
@@ -106,138 +102,70 @@ class FITSViewer:
         self.pmax_entry.insert(0, "100")
         self.pmax_entry.pack(side="left", padx=5)
 
-        apply_button = ctk.CTkButton(
-            input_frame,
-            text="Apply",
-            command=self.update_image_cache,
-            font=fonts.md,
-            fg_color=colors.accent,
-            text_color=colors.text,
-        )
-        apply_button.pack(side="left", padx=10)
-
-        # Sidebar Toggle Button
-        toggle_sidebar_button = ctk.CTkButton(
-            input_frame,
-            text="Tools",
-            command=self.manager.toggle_sidebar,
-            font=fonts.md,
-            fg_color=colors.accent,
-            text_color=colors.text,
-        )
-        toggle_sidebar_button.pack(side="right", padx=10)
+        # Bind Enter key to update_image_cache for both entries
+        self.pmin_entry.bind("<Return>", lambda event: self.update_image_cache())
+        self.pmax_entry.bind("<Return>", lambda event: self.update_image_cache())
 
         # Canvas to display the FITS image with padding
         self.image_canvas = ctk.CTkCanvas(
-            self.content_frame, width=500, height=500, bg=colors.bg
+            self.content_frame, width=700, height=500, bg=colors.bg
         )
         self.image_canvas.pack(fill="both", expand=True, padx=10, pady=10)
+        
         self.image_canvas.bind("<MouseWheel>", self.zoom)
         self.image_canvas.bind("<Button-1>", self.start_pan)
         self.image_canvas.bind("<B1-Motion>", self.pan_image)
 
         # Create coord_frame, thumbnail, and plot_frame inside content_frame
         coord_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        coord_frame.pack(side="left", padx=10, pady=10)
+        coord_frame.pack(side="left", padx=10, pady=5)
 
-        # Coordinate labels in coord_frame
-        self.x_label = ctk.CTkLabel(
-            coord_frame,
-            text="X:",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.x_value = ctk.CTkLabel(
-            coord_frame,
-            text="N/A",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.y_label = ctk.CTkLabel(
-            coord_frame,
-            text="Y:",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.y_value = ctk.CTkLabel(
-            coord_frame,
-            text="N/A",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.ra_label = ctk.CTkLabel(
-            coord_frame,
-            text="RA:",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.ra_value = ctk.CTkLabel(
-            coord_frame,
-            text="N/A",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.dec_label = ctk.CTkLabel(
-            coord_frame,
-            text="Dec:",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.dec_value = ctk.CTkLabel(
-            coord_frame,
-            text="N/A",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.pixel_label = ctk.CTkLabel(
-            coord_frame,
-            text="Pixel:",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.pixel_value = ctk.CTkLabel(
-            coord_frame,
-            text="N/A",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
+        # Define coordinate label and value pairs with text labels
+        coordinates = {
+            "X": "N/A",
+            "Y": "N/A",
+            "RA": "N/A",
+            "Dec": "N/A",
+            "Pixel": "N/A",
+        }
 
-        labels = [
-            (self.x_label, self.x_value),
-            (self.y_label, self.y_value),
-            (self.ra_label, self.ra_value),
-            (self.dec_label, self.dec_value),
-            (self.pixel_label, self.pixel_value),
-        ]
+        # Store label-value pairs to dynamically create CTkLabel widgets
+        self.labels = {}
 
-        for row, (label, value) in enumerate(labels):
-            label.grid(
-                row=row, column=0, padx=10, pady=1, sticky="w"
-            )  # Align label to the left (west)
-            value.grid(
-                row=row, column=1, padx=10, pady=1, sticky="e"
-            )  # Align value to the right (east)
+        for row, (label_text, value_text) in enumerate(coordinates.items()):
+            # Create label and value widgets with text and styles
+            label = ctk.CTkLabel(
+                coord_frame,
+                text=f"{label_text}:",
+                fg_color=colors.bg,
+                text_color=colors.text,
+                font=fonts.md,
+            )
+            value = ctk.CTkLabel(
+                coord_frame,
+                text=value_text,
+                fg_color=colors.bg,
+                text_color=colors.text,
+                font=fonts.md,
+            )
+
+            # Store them for future reference
+            self.labels[label_text.lower()] = (label, value)
+
+            # Grid placement
+            label.grid(row=row, column=0, padx=10, sticky="w")
+            value.grid(row=row, column=1, padx=10, sticky="e")
 
         # Add a button below the labels to copy RA and Dec values
         copy_button = ctk.CTkButton(
             coord_frame,
             text="Copy RA DEC",
             command=self.copy_ra_dec_to_clipboard,
-            font=fonts.md,
+            font=fonts.sm,
             fg_color=colors.accent,
             text_color=colors.text,
         )
-        copy_button.grid(row=len(labels), column=0, columnspan=2, padx=10, pady=10)
+        copy_button.grid(row=len(coordinates), column=0, columnspan=2, padx=10)
         
         thumbnail_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
         thumbnail_frame.pack(side="right", padx=10, pady=10)
@@ -278,10 +206,13 @@ class FITSViewer:
             self.active_image = selected_image
             self.update_display_image()  # Refresh the display to show the selected image
 
-    def open_file_dialog(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[("FITS file", ["*.fz", "*fits"]), ("All files", "*.*")]
-        )
+    def open_file_dialog(self, open_dialog=False):
+        if not open_dialog:
+            file_path = filedialog.askopenfilename(
+                filetypes=[("FITS file", ["*.fz", "*fits"]), ("All files", "*.*")]
+            )
+        else:
+            file_path = self.file_path_entry.get()
         if file_path:
             self.file_path_entry.delete(0, tk.END)
             self.file_path_entry.insert(0, file_path)
@@ -305,7 +236,6 @@ class FITSViewer:
                 if hdu.data is not None and hdu.is_image:
                     if hdu.data.ndim == 3:
                         for i in range(hdu.data.shape[0]):
-                            print(hdu.data[i].shape)
                             self.load_hdu(hdu.data[i], hdu.header, f"[HDU {hdu_num}][dim {i}] - {image_name}")
                     
                     else:
@@ -323,6 +253,8 @@ class FITSViewer:
             return
         self.manager.im_ref().update_image_cache(self.pmin_entry.get(), self.pmax_entry.get())
         self.update_display_image()
+        # Remove focus from the entry fields by setting focus to the root window
+        self.root.focus_set()
 
     def update_display_image(self):
         """Efficiently update the display by only rendering the visible portion of the image."""
@@ -337,6 +269,14 @@ class FITSViewer:
             return
 
         if not self.manager.active_im():
+            self.root.after(50, self.update_thumbnail)
+            return
+        
+        x_image, y_image = self.manager.im_ref().get_image_xy_mouse()
+        if not (
+            0 <= x_image < self.manager.im_ref().image_data.shape[1]
+            and 0 <= y_image < self.manager.im_ref().image_data.shape[0]
+        ):
             self.root.after(50, self.update_thumbnail)
             return
 
@@ -407,15 +347,9 @@ class FITSViewer:
             self.root.after(50, self.update_coordinates)
             return
 
-        # Get mouse position relative to the canvas
-        x_canvas = self.image_canvas.winfo_pointerx() - self.image_canvas.winfo_rootx()
-        y_canvas = self.image_canvas.winfo_pointery() - self.image_canvas.winfo_rooty()
-
-        # Calculate the actual position on the full image, accounting for zoom and offsets
-        x_image = (x_canvas + self.manager.im_ref().offset_x) / self.manager.im_ref().zoom_level
-        y_image = (y_canvas + self.manager.im_ref().offset_y) / self.manager.im_ref().zoom_level
-        x_int, y_int = round(x_image) - 1, round(y_image) - 1
-
+        x_image, y_image = self.manager.im_ref().get_image_xy_mouse()
+        x_int, y_int = round(x_image), round(y_image)
+        
         # Default values
         x_value, y_value, ra_value, dec_value, pixel_value = (
             "N/A",
@@ -430,25 +364,31 @@ class FITSViewer:
             0 <= x_int < self.manager.im_ref().image_data.shape[1]
             and 0 <= y_int < self.manager.im_ref().image_data.shape[0]
         ):
-            pixel_value = f"{self.manager.im_ref().image_data[y_int, x_int]:.4f}"
+            pixel_value = f"{self.manager.im_ref().image_data[y_int - 1, x_int - 1]:.4f}"
 
             # Calculate RA and Dec if WCS information is available
             if hasattr(self.manager.im_ref(), "wcs_info") and self.manager.im_ref().wcs_info:
-                ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[
-                    0
-                ]
-                ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
+                if self.manager.im_ref().header["NAXIS"] == 3:
+                    try:
+                        ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image, 0]], 1)[0]
+                        ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
+                    except:
+                        ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
+                        ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
+                else:
+                    ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
+                    ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
 
             # Update coordinate labels
             x_value = f"{x_image:.2f}"
             y_value = f"{y_image:.2f}"
 
-        # Update label text
-        self.x_value.configure(text=x_value)
-        self.y_value.configure(text=y_value)
-        self.ra_value.configure(text=ra_value)
-        self.dec_value.configure(text=dec_value)
-        self.pixel_value.configure(text=pixel_value)
-
+        # Update label text using dictionary references
+        self.labels["x"][1].configure(text=x_value)
+        self.labels["y"][1].configure(text=y_value)
+        self.labels["ra"][1].configure(text=ra_value)
+        self.labels["dec"][1].configure(text=dec_value)
+        self.labels["pixel"][1].configure(text=pixel_value)
+        
         # Schedule the next update
         self.root.after(50, self.update_coordinates)

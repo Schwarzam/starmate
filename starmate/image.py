@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from starmate.variables import colors
 
 class FitsImage:
 
@@ -19,7 +20,7 @@ class FitsImage:
         self.image_data = image_data
         self.header = header
 
-        self.wcs_info = WCS(header)
+        self.wcs_info = WCS(header, naxis=2)
 
         # Control variables for zooming and panning
         self.zoom_level = 1.0
@@ -78,7 +79,7 @@ class FitsImage:
         cropped_data = self.cached_img_data[
             y_start : y_start + height, x_start : x_start + width
         ]
-        display_img = Image.fromarray(cropped_data).resize(
+        display_img = Image.fromarray(cropped_data).convert("RGB").resize(
             (int(width * self.zoom_level), int(height * self.zoom_level)), Image.NEAREST
         )
 
@@ -101,6 +102,18 @@ class FitsImage:
         )  # Keep reference to avoid garbage collection
         return tk_img
 
+    def get_image_xy_mouse(self):
+        # Get mouse position relative to the canvas
+        x_canvas = self.manager.viewer.image_canvas.winfo_pointerx() - self.manager.viewer.image_canvas.winfo_rootx()
+        y_canvas = self.manager.viewer.image_canvas.winfo_pointery() - self.manager.viewer.image_canvas.winfo_rooty()
+
+        # Calculate the actual position on the full image, accounting for zoom and offsets
+        x_image = (x_canvas + self.offset_x) / self.zoom_level
+        y_image = (y_canvas + self.offset_y) / self.zoom_level
+        
+        # subtract 1 to get the correct pixel value
+        return x_image, y_image
+    
     def zoom(self, event):
         """Zoom in or out relative to the mouse position."""
         zoom_factor = 1.1 if event.delta > 0 else 0.9
@@ -116,6 +129,11 @@ class FitsImage:
         # Adjust offsets to keep zoom centered on the mouse
         self.offset_x = (x_mouse * self.zoom_level) - event.x
         self.offset_y = (y_mouse * self.zoom_level) - event.y
+        
+        if self.offset_x < 0:
+            self.offset_x = 0
+        if self.offset_y < 0:
+            self.offset_y = 0
 
         # Refresh the display to apply the new zoom and offsets
         # self.update_display_image()
@@ -146,16 +164,15 @@ class FitsImage:
     ) -> bool:
         """Handle clicks on the canvas for drawing a line between two points."""
         # Convert canvas click coordinates to image coordinates
-        x_image = (event.x + self.offset_x) / self.zoom_level
-        y_image = (event.y + self.offset_y) / self.zoom_level
-
+        x_image, y_image = self.get_image_xy_mouse()
+        
         if self.line_start is None:
             # Set the start point and bind the motion event for live drawing
             self.line_start = (x_image, y_image)
             image_canvas.bind("<Motion>", drawing_func)
         else:
             # Set the end point, unbind motion, and finalize drawing
-            self.line_end = (x_image - 1, y_image - 1)
+            self.line_end = (x_image, y_image)
             image_canvas.unbind("<Motion>")
             
             self.manager.toggle_drawing_mode()
@@ -167,12 +184,10 @@ class FitsImage:
     def update_line_position(self, event) -> bool:
         """Update the end point of the line as the mouse moves for real-time drawing."""
         if self.line_start:
-            # Convert current mouse position to image coordinates
-            x_image = (event.x + self.offset_x) / self.zoom_level
-            y_image = (event.y + self.offset_y) / self.zoom_level
-
+            x_image, y_image = self.get_image_xy_mouse()
+            
             # Update the line end temporarily and redraw
-            self.line_end = (x_image - 1, y_image - 1)
+            self.line_end = (x_image, y_image)
             return True
 
     def draw_line(self, start, end):
@@ -260,14 +275,8 @@ class FitsImage:
             print("Cached image data is not available.")
             return None
 
-        # Get precise mouse position relative to the canvas
-        x_canvas = image_canvas.winfo_pointerx() - image_canvas.winfo_rootx()
-        y_canvas = image_canvas.winfo_pointery() - image_canvas.winfo_rooty()
-
-        # Calculate the precise position on the cached image
-        x_image = (x_canvas + self.offset_x) / self.zoom_level
-        y_image = (y_canvas + self.offset_y) / self.zoom_level
-
+        x_image, y_image = self.get_image_xy_mouse()
+        
         # Define the cropping area around the mouse location with subpixel precision
         x_start = x_image - size[0] / 2
         y_start = y_image - size[1] / 2
@@ -284,7 +293,7 @@ class FitsImage:
         cropped_data = self.cached_img_data[
             int(y_start) : int(y_end), int(x_start) : int(x_end)
         ]
-        thumbnail_image = Image.fromarray(cropped_data).resize(
+        thumbnail_image = Image.fromarray(cropped_data).convert("RGB").resize(
             final_size, Image.NEAREST
         )
 
@@ -302,7 +311,7 @@ class FitsImage:
                 (center_x - square_size / 2, center_y - square_size / 2),
                 (center_x + square_size / 2, center_y + square_size / 2),
             ],
-            outline="red",
+            outline=colors.accent,
         )
 
         return thumbnail_image
