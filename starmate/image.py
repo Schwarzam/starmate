@@ -13,7 +13,9 @@ from matplotlib.figure import Figure
 
 class FitsImage:
 
-    def __init__(self, image_data, header):
+    def __init__(self, image_data, header, manager):
+        self.manager = manager
+        
         self.image_data = image_data
         self.header = header
 
@@ -140,7 +142,7 @@ class FitsImage:
         # self.update_display_image()
 
     def handle_canvas_click(
-        self, event, image_canvas, drawing_func, toggle_drawing_mode
+        self, event, image_canvas, drawing_func
     ) -> bool:
         """Handle clicks on the canvas for drawing a line between two points."""
         # Convert canvas click coordinates to image coordinates
@@ -155,7 +157,8 @@ class FitsImage:
             # Set the end point, unbind motion, and finalize drawing
             self.line_end = (x_image - 1, y_image - 1)
             image_canvas.unbind("<Motion>")
-            toggle_drawing_mode()
+            
+            self.manager.toggle_drawing_mode()
             self.draw_line(self.line_start, self.line_end)
 
             return True
@@ -305,11 +308,11 @@ class FitsImage:
         return thumbnail_image
 
     @staticmethod
-    def load(file_path, hdu_index=0):
+    def load(file_path, hdu_index=0, manager = None):
         hdulist = fits.open(file_path)
         hdu = hdulist[hdu_index]
 
-        fits_image = FitsImage(hdu.data, hdu.header)
+        fits_image = FitsImage(hdu.data, hdu.header, manager)
         fits_image.update_image_cache()
 
         return fits_image
