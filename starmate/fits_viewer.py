@@ -22,23 +22,7 @@ MAX_DISPLAY_SIZE = 2000  # Limit to a maximum display size to reduce lag
 class FITSViewer:
     def __init__(self, root, args):
         self.root = root
-        self.root.title("starmate")
-        self.sidebar_visible = False  # Track if the sidebar is visible
-
-        # Load the custom font with pyglet
-        font_dir = os.path.join(starmate.__path__[0], "fonts")
-        font_path = os.path.join(font_dir, "JetBrainsMono-VariableFont_wght.ttf")
-        FontManager.load_font(font_path)
-
-        # Use the custom font globally in Tkinter
-        try:
-            custom_font = tkFont.Font(
-                family="JetBrains Mono", size=18
-            )  # Adjust size as needed
-            self.root.option_add("*Font", custom_font)
-        except tk.TclError:
-            print("Font could not be applied in Tkinter.")
-
+    
         # Main Frame using ctk
         self.main_frame = ctk.CTkFrame(self.root, fg_color=colors.bg)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
