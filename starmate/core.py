@@ -56,7 +56,7 @@ class Manager:
         
     def init_mainframe(self):
         # Main Frame using ctk
-        self.main_frame = ctk.CTkFrame(self.root, fg_color=colors.bg)
+        self.main_frame = ctk.CTkFrame(self.root, fg_color=colors.bg, width=1600)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Frame to hold the ComboBox and Change Image button
@@ -67,11 +67,14 @@ class Manager:
         self.image_selector = ctk.CTkComboBox(
             selector_frame,
             height=30,
-            width=150,
+            width=400,
             fg_color=colors.bg,
             text_color=colors.text,
             font=fonts.md,
         )
+        self.image_selector.configure(values=[])
+        self.image_selector.set("Select Image")
+        
         self.image_selector.pack(side="left", padx=5, pady=10)
 
         # Button to manually change the image based on ComboBox selection

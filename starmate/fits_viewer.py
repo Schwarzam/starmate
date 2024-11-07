@@ -44,8 +44,6 @@ class FITSViewer:
         self.update_thumbnail()
 
     def setup_ui(self):
-        
-
         # Main file frame and canvas inside content_frame with padding
         file_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
         file_frame.pack(fill="x", padx=10, pady=10)
@@ -69,24 +67,6 @@ class FITSViewer:
         )
         browse_button.pack(side="right", padx=5, pady=5)
 
-        self.hdu_numinput = ctk.CTkEntry(
-            file_frame,
-            width=5,
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        self.hdu_numinput.pack(side="right", padx=5, pady=5)
-        self.hdu_numinput.insert(0, "1")
-
-        hdu_numlabel = ctk.CTkLabel(
-            file_frame,
-            text="HDU Number:",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.md,
-        )
-        hdu_numlabel.pack(side="right", padx=5, pady=5)
 
         # pmin and pmax inputs with an "Apply" button with padding
         input_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
@@ -159,12 +139,6 @@ class FITSViewer:
         # Create coord_frame, thumbnail, and plot_frame inside content_frame
         coord_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
         coord_frame.pack(side="left", padx=10, pady=10)
-
-        thumbnail_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        thumbnail_frame.pack(side="right", padx=10, pady=10)
-
-        plot_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        plot_frame.pack(side="right", padx=10, pady=10)
 
         # Coordinate labels in coord_frame
         self.x_label = ctk.CTkLabel(
@@ -264,7 +238,13 @@ class FITSViewer:
             text_color=colors.text,
         )
         copy_button.grid(row=len(labels), column=0, columnspan=2, padx=10, pady=10)
+        
+        thumbnail_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
+        thumbnail_frame.pack(side="right", padx=10, pady=10)
 
+        plot_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
+        plot_frame.pack(side="right", padx=10, pady=10)
+        
         # Thumbnail canvas in thumbnail_frame
         self.thumbnail_canvas = ctk.CTkCanvas(
             thumbnail_frame, width=100, height=100, bg=colors.bg
@@ -307,16 +287,29 @@ class FITSViewer:
             self.file_path_entry.insert(0, file_path)
             self.load_fits(file_path)
 
+    def load_hdu(self, data, header, image_name):
+        im = FitsImage.load_f_data(data, header, manager=self.manager)
+
+        im.plot_frame = self.plot_frame
+
+        self.manager.images[image_name] = im
+        self.manager.active_image = image_name
+    
     def load_fits(self, file_path):
         try:
-            hdu = int(self.hdu_numinput.get())
             image_name = os.path.basename(file_path)
-            im = FitsImage.load(file_path, hdu_index=hdu, manager=self.manager)
-
-            im.plot_frame = self.plot_frame
-
-            self.manager.images[image_name] = im
-            self.manager.active_image = image_name
+            
+            hdus = fits.open(file_path)  # Check if the file is a valid FITS file
+            for hdu_num, hdu in enumerate(hdus):
+                # Check if the HDU has image data
+                if hdu.data is not None and hdu.is_image:
+                    if hdu.data.ndim == 3:
+                        for i in range(hdu.data.shape[0]):
+                            print(hdu.data[i].shape)
+                            self.load_hdu(hdu.data[i], hdu.header, f"[HDU {hdu_num}][dim {i}] - {image_name}")
+                    
+                    else:
+                        self.load_hdu(hdu.data, hdu.header, f"[HDU {hdu_num}] - {image_name}")
 
             # Manually update the image list
             self.update_image_list()

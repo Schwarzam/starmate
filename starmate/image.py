@@ -308,6 +308,13 @@ class FitsImage:
         return thumbnail_image
 
     @staticmethod
+    def load_f_data(data, header, manager = None):
+        fits_image = FitsImage(data, header, manager)
+        fits_image.update_image_cache()
+
+        return fits_image
+    
+    @staticmethod
     def load(file_path, hdu_index=0, manager = None):
         hdulist = fits.open(file_path)
         hdu = hdulist[hdu_index]
