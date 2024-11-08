@@ -130,10 +130,8 @@ class FitsImage:
                 
         return ra_dec[0], ra_dec[1]
     
-    def center_on_coordinate(self, zoom_level=2.0):
+    def center_on_coordinate(self, ra, dec, zoom_level=2.0):
         """Center a given RA and Dec coordinate on the canvas with a specified zoom level."""
-        
-        ra, dec = 93.9205, -67.1922
         
         # Convert the RA and Dec to pixel coordinates
         try:

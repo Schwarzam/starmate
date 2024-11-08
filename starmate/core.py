@@ -16,6 +16,8 @@ from starmate.variables import colors, fonts
 
 from logpool import control
 
+from starmate.components.go_to_position import CoordinateInput
+
 class Manager:
     def __init__(self):
         control.keep_in_memory = True
@@ -131,12 +133,16 @@ class Manager:
         
         
     def sidebar_menu(self):
+        # destroy the sidebar content
+        for widget in self.sidebar_content.winfo_children():
+            widget.destroy()
+        
         draw_line_button = ctk.CTkButton(
             self.sidebar_content,
             text="Draw Line",
             command=self.toggle_drawing_mode,
             font=fonts.md,
-            fg_color=colors.accent,
+            fg_color=colors.bg,
             text_color=colors.text,
         )
         draw_line_button.pack(pady=10, padx=10, side="left", anchor="nw")
@@ -144,13 +150,17 @@ class Manager:
         go_to_position_button = ctk.CTkButton(
             self.sidebar_content,
             text="Go to Position",
-            command=self.viewer.center_on_coordinate,
+            command=lambda: CoordinateInput(
+                self.sidebar_content,
+                self.viewer.center_on_coordinate,
+                self.sidebar_menu
+            ),
             font=fonts.md,
-            fg_color=colors.accent,
+            fg_color=colors.bg,
             text_color=colors.text,
         )
         go_to_position_button.pack(pady=10, padx=10, side="left", anchor="nw")
-    
+
     def update_terminal(self, log_message):
         """Updates the terminal text box with lines from the terminal_lines array."""
         self.terminal_textbox.insert("end", log_message + "\n")  # Add each line followed by a newline
@@ -193,6 +203,9 @@ class Manager:
         success = FontManager.load_font(font_path)
         if not success:
             raise Exception("Failed to load custom font")
+        
+
+    
 
 
 manager = Manager()

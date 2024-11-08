@@ -342,11 +342,11 @@ class FITSViewer:
             control.info("coordinates unfrozen.")
             self.update_coordinates()  # Ensure coordinates start updating again if unfrozen
 
-    def center_on_coordinate(self):
+    def center_on_coordinate(self, ra, dec, zoom):
         """Center the image on the current mouse coordinates."""
         if not self.manager.active_im():
             return
-        self.manager.im_ref().center_on_coordinate()
+        self.manager.im_ref().center_on_coordinate(ra, dec, zoom)
         self.update_display_image()
     
     def update_coordinates(self):
