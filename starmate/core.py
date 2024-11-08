@@ -20,7 +20,9 @@ class Manager:
     def __init__(self):
         control.keep_in_memory = True
         control.simple_log = True
-        control.info("starting starmate")
+        control.callback = self.update_terminal
+        
+        
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
         self.root.geometry("1360x900")
@@ -42,6 +44,9 @@ class Manager:
         self.drawing_mode = False
         
         self.viewer = FITSViewer(self, self.root, self.args)
+        self.setup_terminal()
+        
+        control.info("started starmate")
     
     def active_im(self) -> bool:
         if self.active_image is None:
@@ -83,7 +88,19 @@ class Manager:
         
         self.image_selector.pack(side="left", padx=5)
 
-
+    def setup_terminal(self):
+        # Terminal Frame
+        self.terminal_frame = ctk.CTkFrame(
+            self.viewer.bottoml_frame
+        )
+        self.terminal_frame.pack(side="left", expand=True, fill="both")
+        # Terminal-like text box
+        self.terminal_textbox = ctk.CTkTextbox(
+            self.terminal_frame, fg_color="black", text_color=colors.text, width=400
+        )
+        self.terminal_textbox.pack(padx=10, expand=True, fill="both")
+        
+    
     def init_sidebar(self):
         # Sidebar (initially hidden)
         self.sidebar_frame = ctk.CTkFrame(
@@ -91,16 +108,7 @@ class Manager:
         )
         self.sidebar_frame.pack(side="right", expand=True, fill="both", padx=10, pady=10)
         
-        self.terminal_frame = ctk.CTkFrame(
-            self.sidebar_frame
-        )
-        self.terminal_frame.pack(side="bottom", padx = 10, pady = 10, fill="x")
-        # Terminal-like text box
-        self.terminal_textbox = ctk.CTkTextbox(
-            self.terminal_frame, height=200, fg_color="black", text_color=colors.text
-        )
-        self.terminal_textbox.pack(padx=10, pady=10, expand=True, fill="x")
-        self.update_terminal()
+        
         
     def sidebar_menu(self):
         # Sidebar Content with padding
@@ -122,15 +130,10 @@ class Manager:
         )
         draw_line_button.pack(pady=5)
     
-    def update_terminal(self):
+    def update_terminal(self, log_message):
         """Updates the terminal text box with lines from the terminal_lines array."""
-        self.terminal_textbox.delete("1.0", "end")  # Clear previous text
-        
-        for line in control.memory:
-            self.terminal_textbox.insert("end", line + "\n")  # Add each line followed by a newline
+        self.terminal_textbox.insert("end", log_message + "\n")  # Add each line followed by a newline
         self.terminal_textbox.see("end")  # Auto-scroll to the latest line
-        
-        self.root.after(200, self.update_terminal)
     
     def toggle_drawing_mode(self):
         """Enable or disable line drawing mode."""

@@ -1,17 +1,5 @@
 from starmate.utils import DotDict
 
-fonts = DotDict(
-    {
-        "sm": ("JetBrains Mono", 10),
-        "md": ("JetBrains Mono", 12),
-        "lg": ("JetBrains Mono", 14),
-        "xl": ("JetBrains Mono", 16),
-        "2xl": ("JetBrains Mono", 18),
-        "3xl": ("JetBrains Mono", 20),
-        "4xl": ("JetBrains Mono", 22),
-    }
-)
-
 # font_name = "Agave"
 font_name = "JetBrainsMono Nerd Font"
 fonts = DotDict(
@@ -29,6 +17,7 @@ fonts = DotDict(
 colors = DotDict(
     {
         "bg": "#333233",
+        "dark": "#1f1e1f",
         "fg": "#ffffff",
         "accent": "#f4a261",
         "error": "#e63946",

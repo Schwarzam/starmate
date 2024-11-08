@@ -111,9 +111,23 @@ class FitsImage:
         x_image = (x_canvas + self.offset_x) / self.zoom_level
         y_image = (y_canvas + self.offset_y) / self.zoom_level
         
-        # subtract 1 to get the correct pixel value
         return x_image, y_image
     
+    def get_mouse_coords(self):
+        """Get the RA and Dec coordinates of the mouse position on the image."""
+        # Calculate RA and Dec if WCS information is available
+        x_image, y_image = self.get_image_xy_mouse()
+        if hasattr(self.manager.im_ref(), "wcs_info") and self.manager.im_ref().wcs_info:
+            if self.manager.im_ref().header["NAXIS"] == 3:
+                try:
+                    ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image, 0]], 1)[0]
+                except:
+                    ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
+            else:
+                ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
+                
+        return ra_dec[0], ra_dec[1]
+        
     def zoom(self, event):
         """Zoom in or out relative to the mouse position."""
         zoom_factor = 1.1 if event.delta > 0 else 0.9

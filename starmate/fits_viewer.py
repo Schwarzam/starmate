@@ -107,7 +107,7 @@ class FITSViewer:
 
         # Canvas to display the FITS image with padding
         self.image_canvas = ctk.CTkCanvas(
-            self.content_frame, width=700, height=500, bg=colors.bg
+            self.content_frame, width=750, height=500, bg=colors.bg
         )
         self.image_canvas.pack(fill="both", expand=True, padx=10, pady=10)
         
@@ -116,8 +116,8 @@ class FITSViewer:
         self.image_canvas.bind("<B1-Motion>", self.pan_image)
 
         # Create coord_frame, thumbnail, and plot_frame inside content_frame
-        coord_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        coord_frame.pack(side="left", padx=10, pady=5)
+        coord_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.dark)
+        coord_frame.pack(side="left", padx=10, fill="y")
 
         # Define coordinate label and value pairs with text labels
         coordinates = {
@@ -136,14 +136,14 @@ class FITSViewer:
             label = ctk.CTkLabel(
                 coord_frame,
                 text=f"{label_text}:",
-                fg_color=colors.bg,
+                fg_color=colors.dark,
                 text_color=colors.text,
                 font=fonts.md,
             )
             value = ctk.CTkLabel(
                 coord_frame,
                 text=value_text,
-                fg_color=colors.bg,
+                fg_color=colors.dark,
                 text_color=colors.text,
                 font=fonts.md,
             )
@@ -164,28 +164,28 @@ class FITSViewer:
             fg_color=colors.accent,
             text_color=colors.text,
         )
-        copy_button.grid(row=len(coordinates), column=0, columnspan=2, padx=10)
+        copy_button.grid(row=len(coordinates), column=0, columnspan=2, padx=10, pady=4)
         
-        thumbnail_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        thumbnail_frame.pack(side="right", padx=10, pady=10)
-
-        plot_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
-        plot_frame.pack(side="right", padx=10, pady=10)
+        thumbnail_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.dark)
+        thumbnail_frame.pack(side="left", fill="y")
         
         # Thumbnail canvas in thumbnail_frame
-        self.thumbnail_canvas = ctk.CTkCanvas(
-            thumbnail_frame, width=100, height=100, bg=colors.bg
-        )
-        self.thumbnail_canvas.pack(padx=10, pady=10)
+        self.thumbnail_canvas = ctk.CTkCanvas(thumbnail_frame, width = 150, height=150, bg=colors.dark)
+        self.thumbnail_canvas.pack(side="left")
+        
+        self.bottoml_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
+        self.bottoml_frame.pack(side="left", fill="both", padx=10)
+        
+        # plot_frame = ctk.CTkFrame(frame, fg_color=colors.dark)
+        # plot_frame.pack(side="left", fill="both")
 
-        # Plot frame in plot_frame
-        self.plot_frame = ctk.CTkFrame(plot_frame, fg_color=colors.bg)
-        self.plot_frame.pack(padx=10, pady=10)
+        # # Plot frame in plot_frame
+        # self.plot_frame = ctk.CTkFrame(plot_frame, fg_color=colors.bg)
+        # self.plot_frame.pack(padx=10, pady=10)
 
     def copy_ra_dec_to_clipboard(self):
-        ra_text = self.ra_value.cget("text")
-        dec_text = self.dec_value.cget("text")
-        clipboard_text = f"{ra_text} {dec_text}"
+        ra, dec = self.manager.im_ref().get_mouse_coords()
+        clipboard_text = f"{ra} {dec}"
         self.root.clipboard_clear()
         self.root.clipboard_append(clipboard_text)
         control.info(f"Copied to clipboard: {clipboard_text}")
@@ -208,7 +208,7 @@ class FITSViewer:
     def open_file_dialog(self, open_dialog=False):
         if not open_dialog:
             file_path = filedialog.askopenfilename(
-                filetypes=[("FITS file", ["*.fz", "*fits"]), ("All files", "*.*")]
+                filetypes=[("FITS file", ["*.fz", "*fits", "*fit"]), ("All files", "*.*")]
             )
         else:
             file_path = self.file_path_entry.get()
@@ -216,11 +216,12 @@ class FITSViewer:
             self.file_path_entry.delete(0, tk.END)
             self.file_path_entry.insert(0, file_path)
             self.load_fits(file_path)
+        
+        #set focus on root again
+        self.root.focus_set()
 
     def load_hdu(self, data, header, image_name):
         im = FitsImage.load_f_data(data, header, manager=self.manager)
-
-        im.plot_frame = self.plot_frame
 
         self.manager.images[image_name] = im
         self.manager.active_image = image_name
@@ -280,7 +281,7 @@ class FITSViewer:
             return
 
         thumbnail_image = self.manager.im_ref().get_thumbnail(
-            self.image_canvas, size=(10, 10), final_size=(100, 100)
+            self.image_canvas, size=(10, 10), final_size=(150, 150)
         )
 
         self.thumbnail_photo = ImageTk.PhotoImage(thumbnail_image)
@@ -370,17 +371,8 @@ class FITSViewer:
             pixel_value = f"{self.manager.im_ref().image_data[y_int - 1, x_int - 1]:.4f}"
 
             # Calculate RA and Dec if WCS information is available
-            if hasattr(self.manager.im_ref(), "wcs_info") and self.manager.im_ref().wcs_info:
-                if self.manager.im_ref().header["NAXIS"] == 3:
-                    try:
-                        ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image, 0]], 1)[0]
-                        ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
-                    except:
-                        ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
-                        ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
-                else:
-                    ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
-                    ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
+            ra_dec = self.manager.im_ref().get_mouse_coords()
+            ra_value, dec_value = f"{ra_dec[0]:.4f}", f"{ra_dec[1]:.4f}"
 
             # Update coordinate labels
             x_value = f"{x_image:.2f}"
