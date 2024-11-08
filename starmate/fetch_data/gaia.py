@@ -19,6 +19,19 @@ def gaia_query(ra, dec, radius = 1):
     return r
 
 if __name__ == "__main__":
-    c = SkyCoord(ra=3.6803, dec=18.5830, unit=(u.deg, u.deg))
-    r = gaia_query(c.ra.deg, c.dec.deg, 1)
+    # 
+    from astropy.coordinates import FK5
+    
+    ra, dec = 283.395760360555, 32.829517163549454
+    
+    # transform ra, dec from j2000 to j2016 using astropy
+    coords = SkyCoord(ra=ra, dec=dec, unit=(u.deg, u.deg), frame='icrs', obstime='J2000')
+    coords_j2016 = coords.transform_to(FK5(equinox='J2016'))
+    print(coords_j2016.ra.deg, coords_j2016.dec.deg)
+    
+    ra = coords_j2016.ra.deg
+    dec = coords_j2016.dec.deg
+    
+    c = SkyCoord(ra=ra, dec=dec, unit=(u.deg, u.deg))
+    r = gaia_query(c.ra.deg, c.dec.deg, 10)
     print(r)

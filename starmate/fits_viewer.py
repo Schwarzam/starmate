@@ -184,7 +184,7 @@ class FITSViewer:
         # self.plot_frame.pack(padx=10, pady=10)
 
     def copy_ra_dec_to_clipboard(self):
-        ra, dec = self.manager.im_ref().get_mouse_coords()
+        ra, dec = self.labels["ra"][1].cget("text"), self.labels["dec"][1].cget("text")
         clipboard_text = f"{ra} {dec}"
         self.root.clipboard_clear()
         self.root.clipboard_append(clipboard_text)
@@ -342,6 +342,13 @@ class FITSViewer:
             control.info("coordinates unfrozen.")
             self.update_coordinates()  # Ensure coordinates start updating again if unfrozen
 
+    def center_on_coordinate(self):
+        """Center the image on the current mouse coordinates."""
+        if not self.manager.active_im():
+            return
+        self.manager.im_ref().center_on_coordinate()
+        self.update_display_image()
+    
     def update_coordinates(self):
         if self.coords_frozen:
             return

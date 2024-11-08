@@ -12,6 +12,8 @@ from matplotlib.figure import Figure
 
 from starmate.variables import colors
 
+from logpool import control
+
 class FitsImage:
 
     def __init__(self, image_data, header, manager):
@@ -127,6 +129,37 @@ class FitsImage:
                 ra_dec = self.manager.im_ref().wcs_info.wcs_pix2world([[x_image, y_image]], 1)[0]
                 
         return ra_dec[0], ra_dec[1]
+    
+    def center_on_coordinate(self, zoom_level=2.0):
+        """Center a given RA and Dec coordinate on the canvas with a specified zoom level."""
+        
+        ra, dec = 93.9205, -67.1922
+        
+        # Convert the RA and Dec to pixel coordinates
+        try:
+            x_image, y_image = self.wcs_info.wcs_world2pix([[ra, dec]], 1)[0]
+        except Exception as e:
+            print(f"Error in WCS conversion: {e}")
+            return
+        
+        # Set the zoom level
+        self.zoom_level = zoom_level
+        
+        # Get the canvas dimensions
+        canvas_width = self.manager.viewer.image_canvas.winfo_width()
+        canvas_height = self.manager.viewer.image_canvas.winfo_height()
+        
+        # Calculate the offsets to center the target coordinates on the canvas
+        self.offset_x = x_image * self.zoom_level - (canvas_width / 2)
+        self.offset_y = y_image * self.zoom_level - (canvas_height / 2)
+        
+        # Ensure offsets don’t go out of bounds
+        self.offset_x = max(self.offset_x, 0)
+        self.offset_y = max(self.offset_y, 0)
+        
+        # Update the display with the new centered position
+        self.manager.viewer.update_display_image()
+        control.info(f"Centered on RA: {ra}, Dec: {dec} with zoom level {zoom_level}")
         
     def zoom(self, event):
         """Zoom in or out relative to the mouse position."""
@@ -238,16 +271,16 @@ class FitsImage:
         """Plot the pixel values along the line and display it within the Tkinter interface with a custom background."""
 
         # Clear previous plot if it exists
-        for widget in self.plot_frame.winfo_children():
+        for widget in self.manager.plot_frame.winfo_children():
             widget.destroy()
 
         # Set the background color of plot_frame to match the Tkinter window background if necessary
-        self.plot_frame.configure(
+        self.manager.plot_frame.configure(
             fg_color="#333233"
         )  # Adjust to your main window color if needed
 
         # Create a new figure with specified background color
-        fig = Figure(figsize=(4, 2), dpi=100, facecolor="#333233")
+        fig = Figure(figsize=(5, 3), dpi=100, facecolor="#333233")
         ax = fig.add_subplot(
             111, facecolor="#333233"
         )  # Set axes background to the same color
@@ -279,7 +312,7 @@ class FitsImage:
         fig.tight_layout()
 
         # Embed the plot in the specified frame
-        self.plot_canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+        self.plot_canvas = FigureCanvasTkAgg(fig, master=self.manager.plot_frame)
         self.plot_canvas.draw()
         self.plot_canvas.get_tk_widget().pack(fill="both", expand=True)
 

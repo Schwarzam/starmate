@@ -23,6 +23,14 @@ class Manager:
         control.callback = self.update_terminal
         
         
+        
+        self.active_image = None
+        self.images = {}
+        
+        self.drawing_mode = False
+        
+        
+        
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
         self.root.geometry("1360x900")
@@ -33,17 +41,14 @@ class Manager:
         self.init_mainframe()
         self.init_sidebar()
         
-        self.sidebar_menu()
+        
         
         parser = argparse.ArgumentParser(description="CLI for astroxs package")
         self.args = parser.parse_args()
-
-        self.active_image = None
-        self.images = {}
-        
-        self.drawing_mode = False
-        
         self.viewer = FITSViewer(self, self.root, self.args)
+        
+        self.sidebar_menu()
+        
         self.setup_terminal()
         
         control.info("started starmate")
@@ -106,29 +111,45 @@ class Manager:
         self.sidebar_frame = ctk.CTkFrame(
             self.main_frame, fg_color=colors.bg
         )
-        self.sidebar_frame.pack(side="right", expand=True, fill="both", padx=10, pady=10)
+        self.sidebar_frame.pack(side="right", expand=True, fill="both", padx=(0, 10), pady=10)
         
+        self.sidebar_content = ctk.CTkFrame(
+            self.sidebar_frame, fg_color=colors.dark
+        )
+        self.sidebar_content.pack(side="top", expand=True, fill="both", padx=10, pady=10)
+        
+        
+        self.plot = ctk.CTkFrame(
+            self.sidebar_frame, fg_color=colors.dark
+        )
+        self.plot.pack(side="bottom", anchor="s", fill="x", expand=True, padx=10)
+        
+        self.plot_frame = ctk.CTkFrame(
+            self.plot, fg_color=colors.dark
+        )
+        self.plot_frame.pack(side="bottom", padx=10, fill="x")
         
         
     def sidebar_menu(self):
-        # Sidebar Content with padding
-        ctk.CTkLabel(
-            self.sidebar_frame,
-            text="Sidebar Content",
-            fg_color=colors.bg,
-            text_color=colors.text,
-            font=fonts.lg,
-        ).pack(pady=10)
-
         draw_line_button = ctk.CTkButton(
-            self.sidebar_frame,
+            self.sidebar_content,
             text="Draw Line",
             command=self.toggle_drawing_mode,
             font=fonts.md,
             fg_color=colors.accent,
             text_color=colors.text,
         )
-        draw_line_button.pack(pady=5)
+        draw_line_button.pack(pady=10, padx=10, side="left", anchor="nw")
+        
+        go_to_position_button = ctk.CTkButton(
+            self.sidebar_content,
+            text="Go to Position",
+            command=self.viewer.center_on_coordinate,
+            font=fonts.md,
+            fg_color=colors.accent,
+            text_color=colors.text,
+        )
+        go_to_position_button.pack(pady=10, padx=10, side="left", anchor="nw")
     
     def update_terminal(self, log_message):
         """Updates the terminal text box with lines from the terminal_lines array."""
