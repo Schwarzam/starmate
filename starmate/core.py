@@ -17,6 +17,8 @@ from starmate.variables import colors, fonts
 from logpool import control
 
 from starmate.components.go_to_position import CoordinateInput
+from starmate.components.macth_frames import MatchFrames
+from starmate.components.query_object import QueryObject
 
 class Manager:
     def __init__(self):
@@ -28,10 +30,7 @@ class Manager:
         
         self.active_image = None
         self.images = {}
-        
         self.drawing_mode = False
-        
-        
         
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
@@ -42,8 +41,6 @@ class Manager:
 
         self.init_mainframe()
         self.init_sidebar()
-        
-        
         
         parser = argparse.ArgumentParser(description="CLI for astroxs package")
         self.args = parser.parse_args()
@@ -83,11 +80,11 @@ class Manager:
         # ComboBox setup
         self.image_selector = ctk.CTkComboBox(
             selector_frame,
-            height=25,
+            height=30,
             width=400,
             fg_color=colors.bg,
             text_color=colors.text,
-            font=fonts.sm,
+            font=fonts.md,
             command=self.change_active_image,
         )
         self.image_selector.configure(values=[])
@@ -103,7 +100,7 @@ class Manager:
         self.terminal_frame.pack(side="left", expand=True, fill="both")
         # Terminal-like text box
         self.terminal_textbox = ctk.CTkTextbox(
-            self.terminal_frame, fg_color="black", text_color=colors.text, width=400
+            self.terminal_frame, fg_color="black", text_color=colors.text, width=400, font=fonts.sm
         )
         self.terminal_textbox.pack(padx=10, expand=True, fill="both")
         
@@ -133,22 +130,34 @@ class Manager:
         
         
     def sidebar_menu(self):
-        # destroy the sidebar content
+        # Clear existing sidebar content
         for widget in self.sidebar_content.winfo_children():
             widget.destroy()
-        
+
+        # First Row: Drawing Tools
+        row1_frame = ctk.CTkFrame(self.sidebar_content, fg_color=colors.bg)
+        row1_frame.pack(fill="x", expand=True, pady=(10, 5), padx=10)
+
+        row1_label = ctk.CTkLabel(
+            row1_frame,
+            text="Measurements Tools",
+            font=fonts.md,
+            text_color=colors.text
+        )
+        row1_label.pack(side="top", anchor="w", padx=10)
+
         draw_line_button = ctk.CTkButton(
-            self.sidebar_content,
+            row1_frame,
             text="Draw Line",
             command=self.toggle_drawing_mode,
             font=fonts.md,
-            fg_color=colors.bg,
-            text_color=colors.text,
+            fg_color=colors.blue,
+            text_color=colors.text
         )
-        draw_line_button.pack(pady=10, padx=10, side="left", anchor="nw")
-        
+        draw_line_button.pack(side="left", padx=10, pady=5)
+
         go_to_position_button = ctk.CTkButton(
-            self.sidebar_content,
+            row1_frame,
             text="Go to Position",
             command=lambda: CoordinateInput(
                 self.sidebar_content,
@@ -156,10 +165,62 @@ class Manager:
                 self.sidebar_menu
             ),
             font=fonts.md,
-            fg_color=colors.bg,
-            text_color=colors.text,
+            fg_color=colors.blue,
+            text_color=colors.text
         )
-        go_to_position_button.pack(pady=10, padx=10, side="left", anchor="nw")
+        go_to_position_button.pack(side="left", padx=10, pady=5)
+
+        # Second Row: Frame Tools
+        row2_frame = ctk.CTkFrame(self.sidebar_content, fg_color=colors.bg)
+        row2_frame.pack(fill="x", expand=True, pady=(10, 5), padx=10)
+
+        row2_label = ctk.CTkLabel(
+            row2_frame,
+            text="Frame Tools",
+            font=fonts.md,
+            text_color=colors.text
+        )
+        row2_label.pack(side="top", anchor="w", padx=10)
+
+        match_frames_button = ctk.CTkButton(
+            row2_frame,
+            text="Match Frames",
+            command=lambda: MatchFrames(
+                self.sidebar_content,
+                self.sidebar_menu,
+                manager=self
+            ),
+            font=fonts.md,
+            fg_color=colors.blue,
+            text_color=colors.text
+        )
+        match_frames_button.pack(side="left", padx=10, pady=5)
+
+        # Third Row: Online Query Tools
+        row3_frame = ctk.CTkFrame(self.sidebar_content, fg_color=colors.bg)
+        row3_frame.pack(fill="x", expand=True, pady=(10, 5), padx=10)
+
+        row3_label = ctk.CTkLabel(
+            row3_frame,
+            text="Online Query Tools",
+            font=fonts.md,
+            text_color=colors.text
+        )
+        row3_label.pack(side="top", anchor="w", padx=10)
+
+        query_gaia = ctk.CTkButton(
+            row3_frame,
+            text="Query Gaia",
+            command=lambda: QueryObject(
+                self.sidebar_content,
+                self.sidebar_menu,
+                manager=self
+            ),
+            font=fonts.md,
+            fg_color=colors.blue,
+            text_color=colors.text
+        )
+        query_gaia.pack(side="left", padx=10, pady=5)
 
     def update_terminal(self, log_message):
         """Updates the terminal text box with lines from the terminal_lines array."""
@@ -192,6 +253,8 @@ class Manager:
         if selected_image in self.images:  # Check if the selected image is valid
             self.active_image = selected_image
             self.viewer.update_display_image()  # Refresh the display to show the selected image
+            self.viewer.toggle_freeze_coords()
+            self.root.focus_set()
         
     def load_font(self):
         """Load the custom font and add it to the pyglet font registry. """

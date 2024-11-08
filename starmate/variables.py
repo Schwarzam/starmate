@@ -18,6 +18,7 @@ colors = DotDict(
     {
         "bg": "#333233",
         "dark": "#1f1e1f",
+        "blue": "#305770",
         "fg": "#ffffff",
         "accent": "#f4a261",
         "error": "#e63946",

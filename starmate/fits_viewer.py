@@ -22,9 +22,21 @@ class FITSViewer:
         self.root = root
         self.manager : starmate.core.Manager = manager
 
-        
         # Bind key to toggle coordinate freezing
-        self.root.bind("f", self.toggle_freeze_coords)
+        self.root.bind(
+            "<Key-f>", 
+            self.toggle_freeze_coords
+        )
+        self.root.bind(
+            "<Key-c>", 
+            lambda event: self.center_on_coordinate(
+                float(self.labels["ra"][1].cget("text")), 
+                float(self.labels["dec"][1].cget("text")),
+                self.manager.im_ref().zoom_level
+            )
+        )
+
+        
 
         # Additional attributes
         self.coords_frozen = False
@@ -176,12 +188,6 @@ class FITSViewer:
         self.bottoml_frame = ctk.CTkFrame(self.content_frame, fg_color=colors.bg)
         self.bottoml_frame.pack(side="left", fill="both", padx=10)
         
-        # plot_frame = ctk.CTkFrame(frame, fg_color=colors.dark)
-        # plot_frame.pack(side="left", fill="both")
-
-        # # Plot frame in plot_frame
-        # self.plot_frame = ctk.CTkFrame(plot_frame, fg_color=colors.bg)
-        # self.plot_frame.pack(padx=10, pady=10)
 
     def copy_ra_dec_to_clipboard(self):
         ra, dec = self.labels["ra"][1].cget("text"), self.labels["dec"][1].cget("text")
@@ -222,7 +228,7 @@ class FITSViewer:
 
     def load_hdu(self, data, header, image_name):
         im = FitsImage.load_f_data(data, header, manager=self.manager)
-
+        im.name = image_name
         self.manager.images[image_name] = im
         self.manager.active_image = image_name
     
@@ -272,11 +278,13 @@ class FITSViewer:
             self.root.after(50, self.update_thumbnail)
             return
         
-        x_image, y_image = self.manager.im_ref().get_image_xy_mouse()
-        if not (
-            0 <= x_image < self.manager.im_ref().image_data.shape[1]
-            and 0 <= y_image < self.manager.im_ref().image_data.shape[0]
-        ):
+        # Get mouse position relative to the canvas
+        x_canvas = self.image_canvas.winfo_pointerx() - self.image_canvas.winfo_rootx()
+        y_canvas = self.image_canvas.winfo_pointery() - self.image_canvas.winfo_rooty()
+
+        # Check if the mouse is out of bounds for the image_canvas
+        if not (0 <= x_canvas < self.image_canvas.winfo_width() and 0 <= y_canvas < self.image_canvas.winfo_height()):
+            # If out of bounds, schedule the next update and return early
             self.root.after(50, self.update_thumbnail)
             return
 
@@ -329,7 +337,7 @@ class FITSViewer:
         if self.manager.im_ref().update_line_position(event):
             self.update_display_image()
 
-    def toggle_freeze_coords(self, event):
+    def toggle_freeze_coords(self, event=None):
         """Toggle freezing of coordinates display."""
         self.coords_frozen = not self.coords_frozen
         
@@ -341,6 +349,8 @@ class FITSViewer:
         else:
             control.info("coordinates unfrozen.")
             self.update_coordinates()  # Ensure coordinates start updating again if unfrozen
+        
+        self.update_display_image()
 
     def center_on_coordinate(self, ra, dec, zoom):
         """Center the image on the current mouse coordinates."""
@@ -348,6 +358,9 @@ class FITSViewer:
             return
         self.manager.im_ref().center_on_coordinate(ra, dec, zoom)
         self.update_display_image()
+    
+    def get_panel_ra_dec(self):
+        return self.labels["ra"][1].cget("text"), self.labels["dec"][1].cget("text")
     
     def update_coordinates(self):
         if self.coords_frozen:

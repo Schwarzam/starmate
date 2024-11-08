@@ -16,8 +16,9 @@ from logpool import control
 
 class FitsImage:
 
-    def __init__(self, image_data, header, manager):
+    def __init__(self, image_data, header, manager, name = None):
         self.manager = manager
+        self.name = name
         
         self.image_data = image_data
         self.header = header
@@ -84,6 +85,19 @@ class FitsImage:
         display_img = Image.fromarray(cropped_data).convert("RGB").resize(
             (int(width * self.zoom_level), int(height * self.zoom_level)), Image.NEAREST
         )
+        
+        if self.manager.viewer.coords_frozen:
+            # Draw the crosshair at the center of the canvas
+            draw = ImageDraw.Draw(display_img)
+            
+            x_image = self.manager.viewer.labels["x"][1].cget("text")
+            y_image = self.manager.viewer.labels["y"][1].cget("text")
+            
+            frozen_x, frozen_y = self.xy_to_canvas(x_image, y_image)
+            
+            draw.circle(
+                (frozen_x, frozen_y), 10, outline=colors.accent, width=3
+            )
 
         # Draw the line if start and end points are set
         if self.line_start and self.line_end:
@@ -103,22 +117,47 @@ class FitsImage:
             display_img
         )  # Keep reference to avoid garbage collection
         return tk_img
-
-    def get_image_xy_mouse(self):
-        # Get mouse position relative to the canvas
+    
+    def xy_to_canvas(self, x_image, y_image):
+        """Convert image coordinates to canvas coordinates."""
+        x_image = float(x_image)
+        y_image = float(y_image)
+        x_canvas = (x_image * self.zoom_level) - self.offset_x
+        y_canvas = (y_image * self.zoom_level) - self.offset_y
+        return x_canvas, y_canvas
+    
+    def get_canvas_mouse_pos(self):
+        """Get the mouse position on the canvas."""
         x_canvas = self.manager.viewer.image_canvas.winfo_pointerx() - self.manager.viewer.image_canvas.winfo_rootx()
         y_canvas = self.manager.viewer.image_canvas.winfo_pointery() - self.manager.viewer.image_canvas.winfo_rooty()
+        
+        return x_canvas, y_canvas
+    
+    def get_canvas_center_pos(self):
+        # Get the center of the canvas
+        canvas_width = self.manager.viewer.image_canvas.winfo_width()
+        canvas_height = self.manager.viewer.image_canvas.winfo_height()
+        center_x = canvas_width / 2
+        center_y = canvas_height / 2
+        
+        return center_x, center_y
 
-        # Calculate the actual position on the full image, accounting for zoom and offsets
+    def canvas_pos_to_xy(self, x_canvas, y_canvas):
+        """Convert canvas coordinates to image coordinates."""
         x_image = (x_canvas + self.offset_x) / self.zoom_level
         y_image = (y_canvas + self.offset_y) / self.zoom_level
         
         return x_image, y_image
     
-    def get_mouse_coords(self):
-        """Get the RA and Dec coordinates of the mouse position on the image."""
-        # Calculate RA and Dec if WCS information is available
-        x_image, y_image = self.get_image_xy_mouse()
+    def get_image_xy_mouse(self):
+        """Get the image coordinates of the mouse position on the canvas."""
+        x_canvas, y_canvas = self.get_canvas_mouse_pos()
+        x_image, y_image = self.canvas_pos_to_xy(x_canvas, y_canvas)
+        
+        return x_image, y_image
+    
+    def get_radec_from_xy(self, x_image, y_image):
+        """Get the RA and Dec coordinates from image coordinates."""
         if hasattr(self.manager.im_ref(), "wcs_info") and self.manager.im_ref().wcs_info:
             if self.manager.im_ref().header["NAXIS"] == 3:
                 try:
@@ -130,14 +169,46 @@ class FitsImage:
                 
         return ra_dec[0], ra_dec[1]
     
-    def center_on_coordinate(self, ra, dec, zoom_level=2.0):
-        """Center a given RA and Dec coordinate on the canvas with a specified zoom level."""
-        
-        # Convert the RA and Dec to pixel coordinates
+    def get_xy_from_radec(self, ra, dec):
+        """Get the image coordinates from RA and Dec coordinates."""
         try:
-            x_image, y_image = self.wcs_info.wcs_world2pix([[ra, dec]], 1)[0]
+            if hasattr(self.manager.im_ref(), "wcs_info") and self.manager.im_ref().wcs_info:
+                x_image, y_image = self.manager.im_ref().wcs_info.wcs_world2pix([[ra, dec]], 1)[0]
         except Exception as e:
-            print(f"Error in WCS conversion: {e}")
+            control.warn(f"Error converting coordinates: {e}")
+            
+        return x_image, y_image
+    
+    def get_mouse_coords(self):
+        """Get the RA and Dec coordinates of the mouse position on the image."""
+        # Calculate RA and Dec if WCS information is available
+        x_image, y_image = self.get_image_xy_mouse()
+        ra, dec = self.get_radec_from_xy(x_image, y_image)
+        return ra, dec
+    
+    def get_image_canvas_center_coords(self):
+        """Get the RA and Dec coordinates at the center of the canvas."""
+        center_x, center_y = self.get_canvas_center_pos()
+        x_image, y_image = self.canvas_pos_to_xy(center_x, center_y)
+        ra, dec = self.get_radec_from_xy(x_image, y_image)
+        
+        return ra, dec
+    
+    def check_xy_image_bounds(self, x_image, y_image):
+        """Check if the given image coordinates are within the image bounds."""
+        if x_image < 0 or x_image >= self.image_data.shape[1]:
+            return False
+        if y_image < 0 or y_image >= self.image_data.shape[0]:
+            return False
+        
+        if np.isnan(x_image) or np.isnan(y_image) or np.isinf(x_image) or np.isinf(y_image):
+            return False
+        
+        return True
+    
+    def center_on_xy(self, x_image, y_image, zoom_level=2.0):
+        if not self.check_xy_image_bounds(x_image, y_image):
+            control.warn(f"coordinates out of bounds. {self.name}")
             return
         
         # Set the zoom level
@@ -157,7 +228,44 @@ class FitsImage:
         
         # Update the display with the new centered position
         self.manager.viewer.update_display_image()
-        control.info(f"Centered on RA: {ra}, Dec: {dec} with zoom level {zoom_level}")
+        control.info(f"Centered on X: {x_image}, Y: {y_image} with zoom: {round(zoom_level, 1)}")
+    
+    def check_radec_bounds(self, ra, dec):
+        """Check if the given RA and Dec coordinates are within the image bounds."""
+        x_image, y_image = self.get_xy_from_radec(ra, dec)
+        
+        if x_image < 0 or x_image >= self.image_data.shape[1]:
+            return False
+        if y_image < 0 or y_image >= self.image_data.shape[0]:
+            return False
+        return True
+    
+    def center_on_coordinate(self, ra, dec, zoom_level=2.0):
+        """Center a given RA and Dec coordinate on the canvas with a specified zoom level."""
+        x_image, y_image = self.get_xy_from_radec(ra, dec)
+        
+        if not self.check_xy_image_bounds(x_image, y_image):
+            control.warn(f"coordinates out of bounds. {self.name}")
+            return
+        
+        # Set the zoom level
+        self.zoom_level = zoom_level
+        
+        # Get the canvas dimensions
+        canvas_width = self.manager.viewer.image_canvas.winfo_width()
+        canvas_height = self.manager.viewer.image_canvas.winfo_height()
+        
+        # Calculate the offsets to center the target coordinates on the canvas
+        self.offset_x = x_image * self.zoom_level - (canvas_width / 2)
+        self.offset_y = y_image * self.zoom_level - (canvas_height / 2)
+        
+        # Ensure offsets don’t go out of bounds
+        self.offset_x = max(self.offset_x, 0)
+        self.offset_y = max(self.offset_y, 0)
+        
+        # Update the display with the new centered position
+        self.manager.viewer.update_display_image()
+        control.info(f"Centered on RA: {ra}, Dec: {dec} with zoom: {round(zoom_level, 1)}")
         
     def zoom(self, event):
         """Zoom in or out relative to the mouse position."""
@@ -168,7 +276,7 @@ class FitsImage:
         x_mouse = (event.x / self.zoom_level) + (self.offset_x / self.zoom_level)
         y_mouse = (event.y / self.zoom_level) + (self.offset_y / self.zoom_level)
 
-        # Update the zoom level
+        # Update the zoom levelff
         self.zoom_level = new_zoom_level
 
         # Adjust offsets to keep zoom centered on the mouse
@@ -179,9 +287,6 @@ class FitsImage:
             self.offset_x = 0
         if self.offset_y < 0:
             self.offset_y = 0
-
-        # Refresh the display to apply the new zoom and offsets
-        # self.update_display_image()
 
     def start_pan(self, event):
         """Start panning by recording the initial click position."""
@@ -362,18 +467,18 @@ class FitsImage:
         return thumbnail_image
 
     @staticmethod
-    def load_f_data(data, header, manager = None):
-        fits_image = FitsImage(data, header, manager)
+    def load_f_data(data, header, manager = None, name = None):
+        fits_image = FitsImage(data, header, manager, name)
         fits_image.update_image_cache()
 
         return fits_image
     
     @staticmethod
-    def load(file_path, hdu_index=0, manager = None):
+    def load(file_path, hdu_index=0, manager = None, name = None):
         hdulist = fits.open(file_path)
         hdu = hdulist[hdu_index]
 
-        fits_image = FitsImage(hdu.data, hdu.header, manager)
+        fits_image = FitsImage(hdu.data, hdu.header, manager, name)
         fits_image.update_image_cache()
 
         return fits_image
