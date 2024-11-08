@@ -1,6 +1,7 @@
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astroquery.gaia import Gaia
+from logpool import control
 
 Gaia.ROW_LIMIT = 999999
 
@@ -16,7 +17,8 @@ def gaia_query(ra, dec, radius = 1):
     
     r = job.get_results()
     return r
-
+    
+    
 if __name__ == "__main__":
     # 
     from astropy.coordinates import FK5
@@ -25,3 +27,4 @@ if __name__ == "__main__":
     
     c = SkyCoord(ra=ra, dec=dec, unit=(u.deg, u.deg))
     r = gaia_query(c.ra.deg, c.dec.deg, 2)
+    

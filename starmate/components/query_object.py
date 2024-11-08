@@ -59,38 +59,40 @@ class QueryObject:
         )
         title_label.pack(pady=(10, 5))
 
-        # Create a frame to hold the results in a structured way
-        results_frame = ctk.CTkFrame(self.master, fg_color=colors.bg)
-        results_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        # Create a frame to hold the results in a structured way, centered within the master
+        results_frame = ctk.CTkFrame(self.master)
+        results_frame.pack(pady=40, padx=40, expand=True)  # Center `results_frame` within its parent
 
         # Define the columns and data to display
         columns_to_display = result.columns
         labels = columns_to_display
-        
+
         # Display the first row of data
         obj_data = result[0]  # Assuming we're taking the first row
 
-        # Populate each row in the results frame
+        # Populate each row in the results frame and center the content
         for i, (label, column) in enumerate(zip(labels, columns_to_display)):
             value = obj_data[column]
 
-            # Label for the data description
+            # Label for the data description, centered horizontally
             label_widget = ctk.CTkLabel(
                 results_frame, 
                 text=f"{label}:",
                 font=fonts.md, 
                 text_color=colors.text
             )
-            label_widget.grid(row=i, column=0, sticky="w", padx=5)
+            label_widget.grid(row=i, column=0, sticky="e", padx=5)  # Align right for even spacing
 
-            # Value for the data entry
+            # Value for the data entry, aligned with the label
             value_widget = ctk.CTkLabel(
                 results_frame, 
                 text=f"{value:.4f}" if isinstance(value, float) else str(value),
-                font=fonts.md, 
+                font=fonts.md,
                 text_color=colors.text
             )
-            value_widget.grid(row=i, column=1, sticky="w", padx=5)
+            value_widget.grid(row=i, column=1, sticky="w", padx=5)  # Align left for even spacing
+            
+        # TODO: add save button
     
     def query_gaia(self, ra, dec, arcsecs = 2):
         control.info(f"Querying GAIA within {arcsecs} arcsec...")
@@ -99,10 +101,7 @@ class QueryObject:
         if len(res) == 0:
             control.info("No stars found.")
             return
-        
-        # get first object
-        obj = res[0]
-        
+
         self.populate_on_result(res)
         
     
