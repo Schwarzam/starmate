@@ -26,5 +26,8 @@ colors = DotDict(
         "info": "#a8dadc",
         "success": "#457b9d",
         "text": "#ffffff",
+        "text_secondary": "#aaaaaa",
+        "green": "#2a9d8f",
+        "red": "#e63946",
     }
 )

@@ -13,6 +13,7 @@ from starmate.fits_viewer import FITSViewer
 
 from starmate.image import FitsImage
 from starmate.variables import colors, fonts
+from starmate.measurements import MeasurementManager
 
 from logpool import control
 
@@ -31,7 +32,8 @@ class Manager:
         self.active_image = None
         self.images = {}
         self.drawing_mode = False
-        
+        self.measurement_manager = MeasurementManager()
+
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
         self.root.geometry("1360x900")
@@ -134,41 +136,95 @@ class Manager:
         for widget in self.sidebar_content.winfo_children():
             widget.destroy()
 
-        # First Row: Drawing Tools
+        # First Row: Measurement Tools
         row1_frame = ctk.CTkFrame(self.sidebar_content, fg_color=colors.bg)
         row1_frame.pack(fill="x", expand=True, pady=(10, 5), padx=10)
 
         row1_label = ctk.CTkLabel(
             row1_frame,
-            text="Measurements Tools",
+            text="Measurement Tools",
             font=fonts.md,
             text_color=colors.text
         )
         row1_label.pack(side="top", anchor="w", padx=10)
 
-        draw_line_button = ctk.CTkButton(
-            row1_frame,
-            text="Draw Line",
-            command=self.toggle_drawing_mode,
-            font=fonts.md,
+        # Measurement tool buttons in a sub-frame
+        measurement_buttons_frame = ctk.CTkFrame(row1_frame, fg_color=colors.bg)
+        measurement_buttons_frame.pack(side="top", fill="x", padx=10, pady=5)
+
+        measure_line_button = ctk.CTkButton(
+            measurement_buttons_frame,
+            text="Line",
+            command=lambda: self.start_measurement('line'),
+            font=fonts.sm,
             fg_color=colors.blue,
-            text_color=colors.text
+            text_color=colors.text,
+            width=80
         )
-        draw_line_button.pack(side="left", padx=10, pady=5)
+        measure_line_button.pack(side="left", padx=2)
+
+        measure_circle_button = ctk.CTkButton(
+            measurement_buttons_frame,
+            text="Circle",
+            command=lambda: self.start_measurement('circle'),
+            font=fonts.sm,
+            fg_color=colors.blue,
+            text_color=colors.text,
+            width=80
+        )
+        measure_circle_button.pack(side="left", padx=2)
+
+        measure_ellipse_button = ctk.CTkButton(
+            measurement_buttons_frame,
+            text="Ellipse",
+            command=lambda: self.start_measurement('ellipse'),
+            font=fonts.sm,
+            fg_color=colors.blue,
+            text_color=colors.text,
+            width=80
+        )
+        measure_ellipse_button.pack(side="left", padx=2)
+
+        view_measurements_button = ctk.CTkButton(
+            measurement_buttons_frame,
+            text="View Table",
+            command=self.show_measurement_table,
+            font=fonts.sm,
+            fg_color=colors.green,
+            text_color=colors.text,
+            width=80
+        )
+        view_measurements_button.pack(side="left", padx=2)
+
+        # Additional tool buttons
+        tools_frame = ctk.CTkFrame(row1_frame, fg_color=colors.bg)
+        tools_frame.pack(side="top", fill="x", padx=10, pady=5)
 
         go_to_position_button = ctk.CTkButton(
-            row1_frame,
+            tools_frame,
             text="Go to Position",
             command=lambda: CoordinateInput(
                 self.sidebar_content,
                 self.viewer.center_on_coordinate,
                 self.sidebar_menu
             ),
-            font=fonts.md,
+            font=fonts.sm,
             fg_color=colors.blue,
-            text_color=colors.text
+            text_color=colors.text,
+            width=120
         )
-        go_to_position_button.pack(side="left", padx=10, pady=5)
+        go_to_position_button.pack(side="left", padx=2)
+
+        create_cutout_button = ctk.CTkButton(
+            tools_frame,
+            text="Create Cutout",
+            command=self.start_cutout_selection,
+            font=fonts.sm,
+            fg_color=colors.blue,
+            text_color=colors.text,
+            width=120
+        )
+        create_cutout_button.pack(side="left", padx=2)
 
         # Second Row: Frame Tools
         row2_frame = ctk.CTkFrame(self.sidebar_content, fg_color=colors.bg)
@@ -266,6 +322,70 @@ class Manager:
         success = FontManager.load_font(font_path)
         if not success:
             raise Exception("Failed to load custom font")
+
+    # ==================== NEW MEASUREMENT SYSTEM METHODS ====================
+
+    def start_measurement(self, measurement_type):
+        """Start a new measurement of the specified type."""
+        if not self.active_im():
+            control.warn("No active image. Please load an image first.")
+            return
+
+        # Start measurement mode in the active image
+        self.im_ref().start_measurement(measurement_type)
+
+        # Bind canvas click to measurement handler
+        self.viewer.image_canvas.unbind("<Button-1>")
+        self.viewer.image_canvas.bind("<Button-1>", self.handle_measurement_click)
+
+        # Bind escape key to cancel measurement
+        self.root.bind("<Escape>", self.cancel_measurement)
+
+        control.info(f"Started {measurement_type} measurement. Press ESC to cancel.")
+
+    def handle_measurement_click(self, event):
+        """Handle clicks during measurement mode."""
+        if not self.active_im():
+            return
+
+        finished = self.im_ref().handle_measurement_click(event, self.viewer.image_canvas)
+
+        if finished:
+            # Measurement complete, restore normal mode
+            self.viewer.image_canvas.unbind("<Button-1>")
+            self.viewer.image_canvas.bind("<Button-1>", self.viewer.start_pan)
+            self.root.unbind("<Escape>")
+            self.viewer.update_display_image()
+
+        # Update display to show temporary measurement
+        self.viewer.update_display_image()
+
+    def cancel_measurement(self, event=None):
+        """Cancel the current measurement."""
+        if not self.active_im():
+            return
+
+        self.im_ref().cancel_measurement()
+
+        # Restore normal mode
+        self.viewer.image_canvas.unbind("<Button-1>")
+        self.viewer.image_canvas.bind("<Button-1>", self.viewer.start_pan)
+        self.root.unbind("<Escape>")
+        self.viewer.update_display_image()
+
+    def show_measurement_table(self):
+        """Show the measurement table UI."""
+        from starmate.components.measurement_table import MeasurementTable
+        MeasurementTable(self.sidebar_content, self.sidebar_menu, manager=self)
+
+    def start_cutout_selection(self):
+        """Start interactive cutout selection."""
+        if not self.active_im():
+            control.warn("No active image. Please load an image first.")
+            return
+
+        from starmate.components.cutout_tool import CutoutTool
+        CutoutTool(self.sidebar_content, self.sidebar_menu, manager=self)
         
 
     
